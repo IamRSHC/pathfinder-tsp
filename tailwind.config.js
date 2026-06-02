@@ -4,20 +4,28 @@ export default {
   theme: {
     extend: {
       colors: {
-        'game-bg':      '#090d14',
-        'game-surface': '#0f1623',
-        'game-border':  '#1a2540',
-        'game-cyan':    '#00e5ff',
-        'game-amber':   '#ffab00',
-        'game-green':   '#00e676',
-        'game-red':     '#ff1744',
-        'game-purple':  '#d500f9',
-        'game-text':    '#c9d4e8',
-        'game-muted':   '#4a5568',
+        // These now READ from CSS variables — so toggling [data-theme] changes them globally
+        'game-bg':      'var(--color-bg)',
+        'game-surface': 'var(--color-surface)',
+        'game-border':  'var(--color-border)',
+        'game-cyan':    'var(--color-primary)',
+        'game-amber':   'var(--color-secondary)',
+        'game-green':   'var(--color-success)',
+        'game-red':     'var(--color-danger)',
+        'game-purple':  'var(--color-special)',
+        'game-text':    'var(--color-text)',
+        'game-muted':   'var(--color-muted)',
       },
       fontFamily: {
-        mono: ['"JetBrains Mono"', 'monospace'],
-        display: ['"Rajdhani"', 'sans-serif'],
+        mono:    ['var(--font-mono)',    'monospace'],
+        display: ['var(--font-display)', 'sans-serif'],
+      },
+      borderRadius: {
+        'game-card': 'var(--radius-card)',
+        'game-btn':  'var(--radius-btn)',
+      },
+      boxShadow: {
+        'game-card': 'var(--shadow-card)',
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -31,12 +39,12 @@ export default {
           '100%': { boxShadow: '0 0 20px #00e5ff88, 0 0 40px #00e5ff33' },
         },
         slideUp: {
-          '0%':   { transform: 'translateY(100%)', opacity: 0 },
-          '100%': { transform: 'translateY(0)',    opacity: 1 },
+          '0%':   { transform: 'translateY(100%)', opacity: '0' },
+          '100%': { transform: 'translateY(0)',    opacity: '1' },
         },
         fadeIn: {
-          '0%':   { opacity: 0, transform: 'translateY(8px)' },
-          '100%': { opacity: 1, transform: 'translateY(0)' },
+          '0%':   { opacity: '0', transform: 'translateY(8px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
         },
       },
     },

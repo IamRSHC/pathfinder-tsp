@@ -22,23 +22,13 @@
   --radius-card:     0.5rem;
   --radius-btn:      0.375rem;
   --shadow-card:     none;
-  --shadow-btn:      none;
 
   --label-transform: uppercase;
   --label-spacing:   0.1em;
   --label-size:      0.65rem;
 
-  /* Canvas colors (read by usePixiGame) */
-  --canvas-bg:       #090d14;
-  --canvas-grid-r:   0;
-  --canvas-grid-g:   229;
-  --canvas-grid-b:   255;
-  --canvas-grid-a:   0.04;
-  --canvas-node:     0x00e5ff;
-  --canvas-human:    0x00e5ff;
-  --canvas-ai:       0xffab00;
-  --canvas-suggest:  0xd500f9;
-  --canvas-inner:    0x090d14;
+  /* Canvas */
+  --canvas-bg-hex:   #090d14;
   --canvas-node-hex: #00e5ff;
   --canvas-ai-hex:   #ffab00;
 }
@@ -62,23 +52,13 @@
   --radius-card:     1rem;
   --radius-btn:      0.5rem;
   --shadow-card:     0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04);
-  --shadow-btn:      none;
 
   --label-transform: lowercase;
   --label-spacing:   0.05em;
   --label-size:      0.7rem;
 
-  /* Canvas colors */
-  --canvas-bg:       #F5F3EF;
-  --canvas-grid-r:   180;
-  --canvas-grid-g:   170;
-  --canvas-grid-b:   155;
-  --canvas-grid-a:   0.18;
-  --canvas-node:     0x2D6A4F;
-  --canvas-human:    0x2D6A4F;
-  --canvas-ai:       0xB5838D;
-  --canvas-suggest:  0x6D6875;
-  --canvas-inner:    0xF5F3EF;
+  /* Canvas */
+  --canvas-bg-hex:   #F5F3EF;
   --canvas-node-hex: #2D6A4F;
   --canvas-ai-hex:   #B5838D;
 }
@@ -93,7 +73,15 @@ html, body, #root {
   color: var(--color-text);
   font-family: var(--font-mono);
   overflow-x: hidden;
-  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* ── Smooth theme transition on everything EXCEPT canvas ────────────────── */
+*:not(canvas) {
+  transition:
+    background-color 0.3s ease,
+    border-color     0.3s ease,
+    color            0.25s ease,
+    box-shadow       0.3s ease;
 }
 
 /* ── Scrollbar ──────────────────────────────────────────────────────────── */
@@ -102,32 +90,35 @@ html, body, #root {
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 2px; }
 
 /* ── Grid background ────────────────────────────────────────────────────── */
-.grid-bg {
-  background-image:
-    linear-gradient(var(--color-border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--color-border) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-
 [data-theme="cyber"] .grid-bg {
+  background-color: var(--color-bg);
   background-image:
     linear-gradient(rgba(0,229,255,0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0,229,255,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
 }
 
 [data-theme="serene"] .grid-bg {
+  background-color: var(--color-bg);
   background-image:
-    linear-gradient(rgba(180,170,155,0.15) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(180,170,155,0.15) 1px, transparent 1px);
+    linear-gradient(rgba(180,170,155,0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(180,170,155,0.18) 1px, transparent 1px);
+  background-size: 40px 40px;
 }
 
-/* ── Glow utilities (cyber only — serene gets no-op) ────────────────────── */
+/* ── Glow utilities ─────────────────────────────────────────────────────── */
 [data-theme="cyber"] .glow-cyan  { text-shadow: 0 0 10px #00e5ff, 0 0 20px #00e5ff66; }
 [data-theme="cyber"] .glow-amber { text-shadow: 0 0 10px #ffab00, 0 0 20px #ffab0066; }
 [data-theme="cyber"] .glow-green { text-shadow: 0 0 10px #00e676, 0 0 20px #00e67666; }
 [data-theme="serene"] .glow-cyan,
 [data-theme="serene"] .glow-amber,
-[data-theme="serene"] .glow-green { text-shadow: none; }
+[data-theme="serene"] .glow-green { text-shadow: none !important; }
+
+/* ── Border glow ────────────────────────────────────────────────────────── */
+[data-theme="cyber"]  .border-glow-cyan  { box-shadow: 0 0 0 1px #00e5ff33, inset 0 0 20px #00e5ff0a; }
+[data-theme="cyber"]  .border-glow-amber { box-shadow: 0 0 0 1px #ffab0033, inset 0 0 20px #ffab000a; }
+[data-theme="serene"] .border-glow-cyan,
+[data-theme="serene"] .border-glow-amber { box-shadow: none !important; }
 
 /* ── Scanlines (cyber only) ─────────────────────────────────────────────── */
 [data-theme="cyber"] .scanlines::after {
@@ -135,108 +126,75 @@ html, body, #root {
   position: absolute; inset: 0;
   background: repeating-linear-gradient(
     0deg,
-    transparent,
-    transparent 2px,
-    rgba(0,0,0,0.03) 2px,
-    rgba(0,0,0,0.03) 4px
+    transparent, transparent 2px,
+    rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px
   );
   pointer-events: none;
+  z-index: 1;
 }
-[data-theme="serene"] .scanlines::after { display: none; }
+[data-theme="serene"] .scanlines::after { display: none !important; }
 
-/* ── Theme-aware surface / border utilities ─────────────────────────────── */
-.t-bg      { background: var(--color-bg); }
-.t-surface { background: var(--color-surface); }
-.t-border  { border-color: var(--color-border); }
-.t-text    { color: var(--color-text); }
-.t-muted   { color: var(--color-muted); }
-.t-primary { color: var(--color-primary); }
-.t-secondary { color: var(--color-secondary); }
-.t-success { color: var(--color-success); }
-.t-danger  { color: var(--color-danger); }
-.t-special { color: var(--color-special); }
-
-.t-bg-primary   { background: var(--color-primary); }
-.t-bg-secondary { background: var(--color-secondary); }
-.t-bg-surface   { background: var(--color-surface); }
-
-.t-border-primary   { border-color: var(--color-primary); }
-.t-border-secondary { border-color: var(--color-secondary); }
-.t-border-success   { border-color: var(--color-success); }
-.t-border-danger    { border-color: var(--color-danger); }
-.t-border-special   { border-color: var(--color-special); }
-
-/* ── Card utility ───────────────────────────────────────────────────────── */
-.t-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-/* ── Stat label ─────────────────────────────────────────────────────────── */
+/* ── Stat label — reads CSS vars ────────────────────────────────────────── */
 .stat-label {
-  font-family: var(--font-mono);
-  font-size: var(--label-size);
-  letter-spacing: var(--label-spacing);
-  color: var(--color-muted);
-  text-transform: var(--label-transform);
+  font-family:     var(--font-mono);
+  font-size:       var(--label-size);
+  letter-spacing:  var(--label-spacing);
+  color:           var(--color-muted);
+  text-transform:  var(--label-transform);
 }
 
 .stat-value {
   font-family: var(--font-mono);
-  font-size: 1.1rem;
+  font-size:   1.1rem;
   font-weight: 700;
-  color: var(--color-text);
 }
 
-/* ── Display font ───────────────────────────────────────────────────────── */
-.t-display {
-  font-family: var(--font-display);
-}
-
-/* ── Button base ────────────────────────────────────────────────────────── */
-.t-btn-primary {
-  background: var(--color-primary);
-  color: var(--color-bg);
-  border-radius: var(--radius-btn);
-  font-family: var(--font-display);
-  font-weight: 700;
-  transition: opacity 0.15s ease, transform 0.1s ease;
-}
-.t-btn-primary:hover { opacity: 0.88; }
-
-.t-btn-ghost {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-muted);
-  border-radius: var(--radius-btn);
-  font-family: var(--font-mono);
-  transition: border-color 0.15s ease, color 0.15s ease;
-}
-.t-btn-ghost:hover {
-  border-color: var(--color-text);
-  color: var(--color-text);
-}
-
-/* ── Mode card ──────────────────────────────────────────────────────────── */
-.mode-card {
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+/* ── Card shadow in serene ──────────────────────────────────────────────── */
+[data-theme="serene"] .rounded-lg {
   border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
+  box-shadow:    var(--shadow-card);
+}
+
+/* ── Mode card hover ────────────────────────────────────────────────────── */
+.mode-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease !important;
 }
 [data-theme="cyber"]  .mode-card:hover { transform: translateY(-4px); }
 [data-theme="serene"] .mode-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.09);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.09) !important;
 }
 
-/* ── Serene mode card selected — left accent bar ────────────────────────── */
-[data-theme="serene"] .mode-card-selected-solo    { border-left: 3px solid #3A7D5B !important; }
-[data-theme="serene"] .mode-card-selected-copilot { border-left: 3px solid #2D6A4F !important; }
-[data-theme="serene"] .mode-card-selected-vs      { border-left: 3px solid #B5838D !important; }
+/* ── Serene: mode card selected left bar ────────────────────────────────── */
+[data-theme="serene"] .mode-card-selected {
+  border-left-width: 3px !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+/* ── Serene: font overrides ─────────────────────────────────────────────── */
+[data-theme="serene"] h1,
+[data-theme="serene"] h2,
+[data-theme="serene"] h3,
+[data-theme="serene"] .font-display {
+  font-family: 'Fraunces', serif !important;
+}
+
+[data-theme="serene"] .font-mono,
+[data-theme="serene"] .stat-label,
+[data-theme="serene"] .stat-value {
+  font-family: 'DM Mono', monospace !important;
+}
+
+/* ── Serene: no glow shadows on cards/buttons ───────────────────────────── */
+[data-theme="serene"] [class*="shadow-[0_0"] {
+  box-shadow: var(--shadow-card) !important;
+}
+
+/* ── Serene: button restyle ─────────────────────────────────────────────── */
+[data-theme="serene"] button,
+[data-theme="serene"] a[class*="rounded"] {
+  border-radius: var(--radius-btn);
+}
 
 /* ── Drawer handle ──────────────────────────────────────────────────────── */
 .drawer-handle {
@@ -246,8 +204,8 @@ html, body, #root {
   margin: 0 auto 12px;
 }
 
-/* ── Canvas cursor ──────────────────────────────────────────────────────── */
-canvas { cursor: crosshair !important; }
+/* ── Canvas ─────────────────────────────────────────────────────────────── */
+canvas { cursor: crosshair !important; transition: none !important; }
 
 /* ── Animations ─────────────────────────────────────────────────────────── */
 @keyframes nodePulse {
@@ -273,27 +231,9 @@ canvas { cursor: crosshair !important; }
 .animate-slide-up { animation: slideUp 0.3s ease-out; }
 .animate-fade-in  { animation: fadeIn 0.5s ease-out; }
 
-/* ── Theme transition ───────────────────────────────────────────────────── */
-* { transition: background-color 0.3s ease, border-color 0.3s ease, color 0.25s ease; }
-/* Exclude canvas and animation-sensitive elements */
-canvas, .node-pulse, .edge-contested { transition: none !important; }
+/* ── Landing screen BG canvas — theme aware via JS (see LandingScreen) ──── */
+.landing-bg-canvas { pointer-events: none; }
 
-/* ── Serene specific overrides ──────────────────────────────────────────── */
-[data-theme="serene"] .border-glow-cyan,
-[data-theme="serene"] .border-glow-amber { box-shadow: none; }
-
-[data-theme="serene"] h1,
-[data-theme="serene"] h2,
-[data-theme="serene"] h3 {
-  font-family: 'Fraunces', serif;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-[data-theme="serene"] .tracking-widest,
-[data-theme="serene"] .tracking-wider { letter-spacing: 0.01em; }
-
-/* Confidence bar — serene solid colors */
-[data-theme="serene"] .confidence-bar-high   { background: #3A7D5B !important; }
-[data-theme="serene"] .confidence-bar-mid    { background: #B5838D !important; }
-[data-theme="serene"] .confidence-bar-low    { background: #C0544E !important; }
+/* ── Serene tracking override ───────────────────────────────────────────── */
+[data-theme="serene"] .tracking-widest { letter-spacing: 0.02em !important; }
+[data-theme="serene"] .tracking-wider  { letter-spacing: 0.01em !important; }

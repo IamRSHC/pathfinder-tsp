@@ -1,3 +1,5 @@
+const { reset: resetAi } = useAiStore()
+const { theme } = useUiStore()   // ← add this line
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate }       from 'react-router-dom'
 import { gsap }              from 'gsap'
@@ -6,6 +8,7 @@ import DifficultyDial        from '../components/ui/DifficultyDial'
 import LeaderboardTeaser     from '../components/ui/LeaderboardTeaser'
 import { useGameStore }      from '../stores/gameStore'
 import { useAiStore }        from '../stores/aiStore'
+import { useUiStore } from '../stores/uiStore'  // ← add this
 
 export default function LandingScreen() {
   const navigate = useNavigate()
@@ -24,56 +27,76 @@ export default function LandingScreen() {
     )
   }, [])
 
-  // Animated background TSP path
-  useEffect(() => {
-    const canvas = bgCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    let raf, t = 0
+// Animated background TSP path — theme aware
+useEffect(() => {
+  const canvas = bgCanvasRef.current
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  let raf, t = 0
 
-    const resize = () => {
-      canvas.width  = canvas.offsetWidth
-      canvas.height = canvas.offsetHeight
-    }
-    resize()
-    window.addEventListener('resize', resize)
+  const resize = () => {
+    canvas.width  = canvas.offsetWidth
+    canvas.height = canvas.offsetHeight
+  }
+  resize()
+  window.addEventListener('resize', resize)
 
-    // Generate demo nodes
-    const nodes = Array.from({ length: 12 }, (_, i) => ({
-      x: 80 + (i % 4) * (canvas.width / 5) + Math.sin(i * 1.3) * 40,
-      y: 80 + Math.floor(i / 4) * (canvas.height / 4) + Math.cos(i * 0.9) * 30,
-    }))
+  const nodes = Array.from({ length: 12 }, (_, i) => ({
+    x: 80 + (i % 4) * (canvas.width / 5) + Math.sin(i * 1.3) * 40,
+    y: 80 + Math.floor(i / 4) * (canvas.height / 4) + Math.cos(i * 0.9) * 30,
+  }))
 
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      t += 0.008
+  const draw = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    t += theme === 'serene' ? 0.005 : 0.008
 
-      // Draw suboptimal animated path
-      ctx.strokeStyle = 'rgba(0, 229, 255, 0.12)'
-      ctx.lineWidth = 1.5
-      ctx.setLineDash([6, 4])
+    // Pick colors based on theme
+    const lineColor   = theme === 'serene' ? '45,106,79'   : '0,229,255'
+    const lineOpacity = theme === 'serene' ? 0.08          : 0.12
+    const dotColor    = theme === 'serene' ? '45,106,79'   : '0,229,255'
+
+    // Edges
+    ctx.strokeStyle = `rgba(${lineColor}, ${lineOpacity})`
+    ctx.lineWidth   = theme === 'serene' ? 1 : 1.5
+    ctx.setLineDash([6, 4])
+    ctx.beginPath()
+    nodes.forEach((n, i) => {
+      const next = nodes[(i + 1) % nodes.length]
+      ctx.moveTo(n.x, n.y)
+      ctx.lineTo(next.x, next.y)
+    })
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // Nodes
+    nodes.forEach((n, i) => {
+      const pulse = 0.5 + 0.5 * Math.sin(t * 2 + i * 0.7)
+      const baseAlpha = theme === 'serene' ? 0.18 : 0.3
+
       ctx.beginPath()
-      nodes.forEach((n, i) => {
-        const next = nodes[(i + 1) % nodes.length]
-        ctx.moveTo(n.x, n.y)
-        ctx.lineTo(next.x, next.y)
-      })
-      ctx.stroke()
-      ctx.setLineDash([])
+      ctx.arc(n.x, n.y, (theme === 'serene' ? 4 : 5) + pulse * 2, 0, Math.PI * 2)
+      ctx.fillStyle = `rgba(${dotColor}, ${baseAlpha + pulse * (theme === 'serene' ? 0.2 : 0.4)})`
+      ctx.fill()
 
-      // Draw nodes
-      nodes.forEach((n, i) => {
-        const pulse = 0.5 + 0.5 * Math.sin(t * 2 + i * 0.7)
-        ctx.beginPath()
-        ctx.arc(n.x, n.y, 5 + pulse * 2, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(0, 229, 255, ${0.3 + pulse * 0.4})`
-        ctx.fill()
+      // Glow ring — cyber only
+      if (theme !== 'serene') {
         ctx.beginPath()
         ctx.arc(n.x, n.y, 14 + pulse * 4, 0, Math.PI * 2)
-        ctx.strokeStyle = `rgba(0, 229, 255, ${0.05 + pulse * 0.08})`
-        ctx.lineWidth = 1
+        ctx.strokeStyle = `rgba(${dotColor}, ${0.05 + pulse * 0.08})`
+        ctx.lineWidth   = 1
         ctx.stroke()
-      })
+      }
+    })
+
+    raf = requestAnimationFrame(draw)
+  }
+  draw()
+
+  return () => {
+    cancelAnimationFrame(raf)
+    window.removeEventListener('resize', resize)
+  }
+}, [theme]) // ← re-runs when theme changes
 
       raf = requestAnimationFrame(draw)
     }

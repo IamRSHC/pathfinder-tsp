@@ -2,9 +2,9 @@ import { Link, useLocation } from 'react-router-dom'
 import { useUiStore } from '../../stores/uiStore'
 
 export default function Navbar() {
-  const { pathname } = useLocation()
-  const { theme, toggleTheme } = useUiStore()
-  const isSerene = theme === 'serene'
+  const { pathname }             = useLocation()
+  const { theme, toggleTheme }   = useUiStore()
+  const isSerene                 = theme === 'serene'
 
   const links = [
     { to: '/',       label: isSerene ? 'Lobby'  : 'LOBBY'  },
@@ -14,119 +14,154 @@ export default function Navbar() {
 
   return (
     <nav
-      className="flex items-center justify-between px-6 py-3 shrink-0"
       style={{
-        background:   'var(--color-surface)',
-        borderBottom: '1px solid var(--color-border)',
+        display:       'flex',
+        alignItems:    'center',
+        justifyContent:'space-between',
+        padding:       '0.625rem 1.5rem',
+        background:    'var(--color-surface)',
+        borderBottom:  '1px solid var(--color-border)',
+        flexShrink:    0,
+        position:      'relative',
+        zIndex:        50,
       }}
     >
-      {/* Logo */}
-      <Link to="/" className="flex items-center gap-2">
-        <span
-          className={`font-bold text-lg tracking-widest t-display ${
-            isSerene ? 'text-[#2D6A4F]' : 'text-game-cyan glow-cyan'
-          }`}
-          style={{ fontFamily: 'var(--font-display)' }}
-        >
+      {/* ── Logo ── */}
+      <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
+        <span style={{
+          fontFamily:    'var(--font-display)',
+          fontWeight:    700,
+          fontSize:      '1.15rem',
+          letterSpacing: isSerene ? '0.01em' : '0.15em',
+          color:         'var(--color-primary)',
+          textShadow:    isSerene ? 'none' : '0 0 10px var(--color-primary)',
+        }}>
           {isSerene ? 'Pathfinder' : 'PATHFINDER'}
         </span>
-        <span
-          className="hidden sm:block text-xs"
-          style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-muted)' }}
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize:   '0.7rem',
+          color:      'var(--color-muted)',
+          display:    'none',
+        }}
+          className="sm:block"
         >
           {isSerene ? 'TSP · Human × AI' : 'TSP // HUMAN × AI'}
         </span>
       </Link>
 
-      {/* Nav links + toggle */}
-      <div className="flex items-center gap-1 sm:gap-2">
+      {/* ── Right side: nav links + toggle ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+
+        {/* Nav links */}
         {links.map(l => (
           <Link
             key={l.to}
             to={l.to}
-            className="px-3 py-1.5 rounded transition-colors duration-150"
             style={{
-              fontFamily:  'var(--font-mono)',
-              fontSize:    '0.72rem',
-              fontWeight:  700,
-              letterSpacing: isSerene ? '0.01em' : '0.08em',
-              color: pathname === l.to
-                ? 'var(--color-primary)'
-                : 'var(--color-muted)',
-              background: pathname === l.to
-                ? isSerene
-                  ? 'rgba(45,106,79,0.08)'
-                  : 'rgba(0,229,255,0.08)'
+              fontFamily:    'var(--font-mono)',
+              fontSize:      '0.72rem',
+              fontWeight:    700,
+              letterSpacing: isSerene ? '0.02em' : '0.08em',
+              color:         pathname === l.to ? 'var(--color-primary)' : 'var(--color-muted)',
+              background:    pathname === l.to
+                ? isSerene ? 'rgba(45,106,79,0.08)' : 'rgba(0,229,255,0.08)'
                 : 'transparent',
-              borderBottom: pathname === l.to && isSerene
-                ? '2px solid var(--color-primary)'
-                : 'none',
+              padding:        '0.35rem 0.75rem',
+              borderRadius:   '0.375rem',
+              textDecoration: 'none',
+              borderBottom:   pathname === l.to && isSerene ? '2px solid var(--color-primary)' : '2px solid transparent',
+              transition:     'color 0.15s ease, background 0.15s ease',
             }}
           >
             {l.label}
           </Link>
         ))}
 
-        {/* ── Theme Toggle ── */}
-        <button
-          onClick={toggleTheme}
-          aria-label="Toggle theme"
-          className="relative ml-3 flex items-center rounded-full p-0.5 transition-all duration-300"
+        {/* ── Theme Toggle Pill ── */}
+        <div
           style={{
-            background:   isSerene ? '#EFF6F2' : '#1a2540',
-            border:       isSerene
-              ? '1px solid rgba(45,106,79,0.25)'
-              : '1px solid rgba(0,229,255,0.25)',
-            width:  '88px',
-            height: '30px',
+            marginLeft:    '0.75rem',
+            position:      'relative',
+            display:       'flex',
+            alignItems:    'center',
+            width:         '96px',
+            height:        '32px',
+            borderRadius:  '999px',
+            cursor:        'pointer',
+            userSelect:    'none',
+            // High contrast background that's visible on BOTH themes
+            background:    isSerene ? '#E8F5EE' : '#162032',
+            border:        isSerene
+              ? '1.5px solid #2D6A4F'
+              : '1.5px solid #00e5ff',
+            boxShadow:     isSerene
+              ? '0 0 0 0px transparent'
+              : '0 0 8px rgba(0,229,255,0.3)',
+            flexShrink:    0,
           }}
+          onClick={toggleTheme}
+          role="button"
+          aria-label="Toggle theme"
         >
-          {/* Sliding pill */}
-          <span
-            className="absolute rounded-full transition-all duration-300 ease-in-out"
+          {/* Sliding pill indicator */}
+          <div
             style={{
-              width:      '38px',
-              height:     '22px',
+              position:   'absolute',
               top:        '3px',
-              left:       isSerene ? '45px' : '3px',
+              left:       isSerene ? 'calc(100% - 3px - 42px)' : '3px',
+              width:      '42px',
+              height:     '22px',
+              borderRadius: '999px',
               background: isSerene
-                ? 'linear-gradient(135deg, #2D6A4F, #3A7D5B)'
-                : 'linear-gradient(135deg, #00e5ff, #0099bb)',
+                ? 'linear-gradient(135deg, #2D6A4F, #52B788)'
+                : 'linear-gradient(135deg, #00b4d8, #00e5ff)',
               boxShadow:  isSerene
-                ? '0 1px 6px rgba(45,106,79,0.35)'
-                : '0 1px 8px rgba(0,229,255,0.45)',
+                ? '0 2px 8px rgba(45,106,79,0.5)'
+                : '0 2px 10px rgba(0,229,255,0.6)',
+              transition: 'left 0.28s cubic-bezier(0.4, 0, 0.2, 1)',
+              zIndex:     2,
             }}
           />
 
-          {/* Left label — CYBER */}
+          {/* CYBER label — left */}
           <span
-            className="relative z-10 flex-1 text-center transition-all duration-200"
             style={{
-              fontFamily:  "'JetBrains Mono', monospace",
-              fontSize:    '0.55rem',
-              fontWeight:  700,
-              letterSpacing: '0.04em',
-              color: !isSerene ? '#090d14' : 'var(--color-muted)',
-              userSelect: 'none',
+              position:      'relative',
+              zIndex:        3,
+              flex:          1,
+              textAlign:     'center',
+              fontFamily:    "'JetBrains Mono', monospace",
+              fontSize:      '0.52rem',
+              fontWeight:    700,
+              letterSpacing: '0.06em',
+              color:         !isSerene ? '#090d14' : 'var(--color-muted)',
+              transition:    'color 0.2s ease',
+              pointerEvents: 'none',
             }}
           >
             CYBER
           </span>
 
-          {/* Right label — Serene */}
+          {/* Serene label — right */}
           <span
-            className="relative z-10 flex-1 text-center transition-all duration-200"
             style={{
-              fontFamily:  "'Fraunces', serif",
-              fontSize:    '0.6rem',
-              fontWeight:  isSerene ? 600 : 400,
-              color: isSerene ? '#FAFAF8' : 'var(--color-muted)',
-              userSelect: 'none',
+              position:      'relative',
+              zIndex:        3,
+              flex:          1,
+              textAlign:     'center',
+              fontFamily:    "'Fraunces', serif",
+              fontSize:      '0.62rem',
+              fontWeight:    isSerene ? 700 : 400,
+              color:         isSerene ? '#FAFAF8' : 'var(--color-muted)',
+              transition:    'color 0.2s ease',
+              pointerEvents: 'none',
             }}
           >
             Serene
           </span>
-        </button>
+        </div>
+
       </div>
     </nav>
   )

@@ -6,7 +6,7 @@ export const useUiStore = create((set) => ({
   activePanel:      'canvas',
   showTutorial:     false,
   notification:     null,
-  theme:            'cyber', // 'cyber' | 'serene'
+  theme:            'cyber',
 
   toggleDrawer:       ()    => set(s => ({ mobileDrawerOpen: !s.mobileDrawerOpen })),
   openDrawer:         (tab) => set({ mobileDrawerOpen: true, activeDrawerTab: tab }),
@@ -27,5 +27,5 @@ export const useUiStore = create((set) => ({
   }),
 }))
 
-// Apply theme on first load
+// Apply on first load
 document.documentElement.setAttribute('data-theme', 'cyber')
