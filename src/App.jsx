@@ -6,12 +6,17 @@ import GlobalScreen   from './screens/GlobalScreen'
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/"        element={<LandingScreen />} />
-      <Route path="/arena"   element={<ArenaScreen />} />
-      <Route path="/results" element={<ResultsScreen />} />
-      <Route path="/global"  element={<GlobalScreen />} />
-      <Route path="*"        element={<Navigate to="/" replace />} />
-    </Routes>
+    // This wrapper gives every screen a stable, browser-height root that
+    // never collapses during Zustand store flushes or React unmount cycles.
+    // Each screen sets its own internal height (100dvh / 100vh fallback).
+    <div style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
+      <Routes>
+        <Route path="/"        element={<LandingScreen />} />
+        <Route path="/arena"   element={<ArenaScreen />} />
+        <Route path="/results" element={<ResultsScreen />} />
+        <Route path="/global"  element={<GlobalScreen />} />
+        <Route path="*"        element={<Navigate to="/" replace />} />
+      </Routes>
+    </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate }    from 'react-router-dom'
 import GameCanvas         from '../components/canvas/GameCanvas'
 import AIPanel            from '../components/panels/AIPanel'
@@ -11,38 +11,42 @@ import { useAiStore }     from '../stores/aiStore'
 import { useTheme }       from '../hooks/useTheme'
 
 export default function ArenaScreen() {
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
+  const isMounted = useRef(true)
 
   const { gamePhase, resetGame, difficulty, nodes } = useGameStore()
   const { mobileDrawerOpen, openDrawer, notification } = useUiStore()
   const { reset: resetAi } = useAiStore()
   const t = useTheme()
 
-  // ── Always reset on mount AND on unmount ────────────────────────────────
-  // Zustand store persists across SPA navigation; PixiJS app is destroyed on
-  // unmount. Without a full reset, stale gamePhase ('routing'/'complete') means
-  // GameCanvas never calls spawnNodes() on re-entry → blank canvas.
-  // We also reset on UNMOUNT so navigating away (Lobby, Global) leaves the
-  // store clean, preventing any downstream screen from seeing stale game data.
+  // ── Reset ONLY on mount ──────────────────────────────────────────────────
+  // Zustand store persists across SPA navigation; PixiJS is destroyed on
+  // unmount. Resetting here gives a clean slate every time Arena is entered.
+  //
+  // ⚠️  DO NOT reset in the cleanup (return fn). Calling resetGame() during
+  // unmount triggers a Zustand flush mid-React-commit, which re-renders the
+  // newly mounted screen (Lobby/Global) before its own layout is stable.
+  // That is the EXACT cause of the blank-screen on navigation away from Arena.
   useEffect(() => {
-    // Always reset on every mount — ensures fresh state regardless of
-    // where we came from (Lobby → Arena or Arena ← Lobby back-navigation)
+    isMounted.current = true
     resetGame()
     resetAi()
-
     return () => {
-      // Reset on unmount so Lobby/Global screens never inherit stale state
-      resetGame()
-      resetAi()
+      isMounted.current = false
+      // No store resets here — intentional. See note above.
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Navigate to results when game completes
+  // Navigate to results when game completes — guarded so it never fires
+  // after the component has unmounted (user navigated away mid-game)
   useEffect(() => {
     if (gamePhase === 'complete') {
-      setTimeout(() => navigate('/results'), 800)
+      const timer = setTimeout(() => {
+        if (isMounted.current) navigate('/results')
+      }, 800)
+      return () => clearTimeout(timer)
     }
-  }, [gamePhase])
+  }, [gamePhase, navigate])
 
   // Notification colour sets
   const notifCls = notification
@@ -54,7 +58,7 @@ export default function ArenaScreen() {
     : ''
 
   return (
-    <div className="flex flex-col h-screen bg-game-bg overflow-hidden">
+    <div className="flex flex-col bg-game-bg overflow-hidden" style={{ height: '100%' }}>
       <Navbar />
 
       {/* Main arena — desktop 3-panel / mobile stacked */}

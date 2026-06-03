@@ -306,11 +306,7 @@ canvas { cursor: crosshair !important; transition: none !important; }
    MOBILE RESPONSIVE FIXES
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Fix iOS 100vh issue — use fill-available where supported */
-html, body, #root {
-  height: 100%;
-  height: -webkit-fill-available;
-}
+/* iOS height fix: overflow clipping is handled by App's position:fixed wrapper */
 
 /* Prevent text from being too small on mobile zoom */
 html {
@@ -343,16 +339,8 @@ body {
   .pb-2 { padding-bottom: 0.25rem; }
 }
 
-/* ── Mobile landscape: allow scrolling, compact layout ── */
+/* ── Mobile landscape: compact hero padding ── */
 @media (max-height: 500px) and (orientation: landscape) {
-  /* On landscape mobile, landing screen needs scroll */
-  .h-screen.grid-bg.flex.flex-col {
-    height: auto;
-    min-height: 100vh;
-    overflow-y: auto;
-  }
-
-  /* Compact the hero in landscape */
   .flex.flex-col.items-center.justify-center.pt-3 {
     padding-top: 0.25rem;
     padding-bottom: 0.25rem;

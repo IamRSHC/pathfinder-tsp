@@ -102,7 +102,7 @@ export default function LandingScreen() {
   }
 
   return (
-    <div className="relative h-screen grid-bg flex flex-col overflow-hidden" style={{ minHeight: '-webkit-fill-available' }}>
+    <div className="relative grid-bg flex flex-col overflow-hidden" style={{ height: '100%' }}>
 
       {/* Animated BG canvas */}
       <canvas
@@ -127,7 +127,7 @@ export default function LandingScreen() {
       )}
 
       {/* Page content — fills full viewport height, no overflow scroll */}
-      <div className="relative z-10 flex flex-col h-full">
+      <div className="relative z-10 flex flex-col" style={{ flex: "1 1 0", minHeight: 0 }}>
         <Navbar />
 
         {/* ── Hero ── */}
@@ -189,7 +189,7 @@ export default function LandingScreen() {
 
         {/* ── Config panel — takes remaining space ── */}
         <div className="flex-1 min-h-0 px-3 sm:px-6 lg:px-8 pb-3 max-w-6xl mx-auto w-full overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
             {/* Left col — mode + difficulty + start */}
             <div className="lg:col-span-2 space-y-3">

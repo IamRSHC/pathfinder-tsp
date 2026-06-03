@@ -83,9 +83,18 @@ export function usePixiGame(containerRef) {
     app.stage.addChild(sugGfx)
 
     return () => {
-      app.destroy(true, { children: true })
+      // Use requestAnimationFrame to defer Pixi destruction by one frame.
+      // Destroying synchronously during React's unmount/commit phase causes
+      // WebGL context teardown to race with the newly mounted screen's first
+      // paint, producing a blank flash. Deferring one frame lets React fully
+      // commit the new screen before we tear down the old GL context.
+      const appToDestroy = app
+      requestAnimationFrame(() => {
+        try { appToDestroy.destroy(true, { children: true }) } catch (_) {}
+      })
       appRef.current = null
       nodesGfxRef.current = []
+      edgesGfxRef.current = null
     }
   }, [])
 
