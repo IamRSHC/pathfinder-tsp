@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useNavigate }    from 'react-router-dom'
 import GameCanvas         from '../components/canvas/GameCanvas'
 import AIPanel            from '../components/panels/AIPanel'
@@ -11,33 +11,31 @@ import { useAiStore }     from '../stores/aiStore'
 import { useTheme }       from '../hooks/useTheme'
 
 export default function ArenaScreen() {
-  const navigate    = useNavigate()
-  const mountedOnce = useRef(false)
+  const navigate = useNavigate()
 
   const { gamePhase, resetGame, difficulty, nodes } = useGameStore()
   const { mobileDrawerOpen, openDrawer, notification } = useUiStore()
   const { reset: resetAi } = useAiStore()
   const t = useTheme()
 
-  // ── FIX: always reset when Arena mounts ─────────────────────────────────
-  // Zustand store persists across navigation; Pixi app is destroyed on unmount.
-  // Without this reset, gamePhase stays 'routing'/'complete' so GameCanvas
-  // never calls spawnNodes() again → blank screen.
+  // ── Always reset on mount AND on unmount ────────────────────────────────
+  // Zustand store persists across SPA navigation; PixiJS app is destroyed on
+  // unmount. Without a full reset, stale gamePhase ('routing'/'complete') means
+  // GameCanvas never calls spawnNodes() on re-entry → blank canvas.
+  // We also reset on UNMOUNT so navigating away (Lobby, Global) leaves the
+  // store clean, preventing any downstream screen from seeing stale game data.
   useEffect(() => {
-    if (!mountedOnce.current) {
-      mountedOnce.current = true
-      // Only reset if we have stale state from a previous session
-      const { gamePhase: phase } = useGameStore.getState()
-      if (phase !== 'idle') {
-        resetGame()
-        resetAi()
-      }
-    }
-    // Cleanup: reset on unmount so next mount starts clean
+    // Always reset on every mount — ensures fresh state regardless of
+    // where we came from (Lobby → Arena or Arena ← Lobby back-navigation)
+    resetGame()
+    resetAi()
+
     return () => {
-      mountedOnce.current = false
+      // Reset on unmount so Lobby/Global screens never inherit stale state
+      resetGame()
+      resetAi()
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Navigate to results when game completes
   useEffect(() => {

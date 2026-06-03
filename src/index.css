@@ -301,3 +301,87 @@ canvas { cursor: crosshair !important; transition: none !important; }
 
 /* ── Serene: bg-current overrides in DifficultyDial / tab active states ── */
 [data-theme="serene"] .bg-current\/10 { background-color: color-mix(in srgb, currentColor 10%, transparent) !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE FIXES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Fix iOS 100vh issue — use fill-available where supported */
+html, body, #root {
+  height: 100%;
+  height: -webkit-fill-available;
+}
+
+/* Prevent text from being too small on mobile zoom */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Touch-friendly tap targets */
+button, a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Prevent horizontal scroll on mobile */
+body {
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* ── Mobile portrait: Landing screen mode cards stacked nicely ── */
+@media (max-width: 639px) {
+  /* Ensure mode cards don't overflow */
+  .grid.grid-cols-1.sm\\:grid-cols-3 {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  /* Reduce hero title padding on very small screens */
+  .pt-3 { padding-top: 0.5rem; }
+  .pb-2 { padding-bottom: 0.25rem; }
+}
+
+/* ── Mobile landscape: allow scrolling, compact layout ── */
+@media (max-height: 500px) and (orientation: landscape) {
+  /* On landscape mobile, landing screen needs scroll */
+  .h-screen.grid-bg.flex.flex-col {
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
+  }
+
+  /* Compact the hero in landscape */
+  .flex.flex-col.items-center.justify-center.pt-3 {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+}
+
+/* ── Arena screen mobile canvas — fill remaining height ── */
+@media (max-width: 1023px) {
+  /* Ensure canvas area fills correctly on mobile */
+  .flex-1.relative.min-w-0 {
+    min-height: 0;
+  }
+}
+
+/* ── Global / Results screens: ensure scrollable on mobile ── */
+@media (max-width: 767px) {
+  .h-screen.bg-game-bg.overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Tighter padding on mobile */
+  .px-4.sm\\:px-6.lg\\:px-8.py-6 {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    padding-top: 0.75rem;
+  }
+
+  /* Stack leaderboard grid on mobile */
+  .grid.grid-cols-1.lg\\:grid-cols-3 {
+    grid-template-columns: 1fr;
+  }
+}

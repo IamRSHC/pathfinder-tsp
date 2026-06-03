@@ -102,7 +102,7 @@ export default function LandingScreen() {
   }
 
   return (
-    <div className="relative h-screen grid-bg flex flex-col overflow-hidden">
+    <div className="relative h-screen grid-bg flex flex-col overflow-hidden" style={{ minHeight: '-webkit-fill-available' }}>
 
       {/* Animated BG canvas */}
       <canvas
@@ -133,7 +133,7 @@ export default function LandingScreen() {
         {/* ── Hero ── */}
         <div
           ref={heroRef}
-          className="flex flex-col items-center justify-center pt-5 pb-3 px-6 text-center"
+          className="flex flex-col items-center justify-center pt-3 pb-2 px-4 text-center"
         >
           {/* Badge */}
           <div className="mb-3">
@@ -173,7 +173,7 @@ export default function LandingScreen() {
 
           {/* Tagline */}
           <p
-            className="text-lg sm:text-xl max-w-lg leading-relaxed"
+            className="text-base sm:text-xl max-w-lg leading-relaxed"
             style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
           >
             Can you outthink a machine?
@@ -188,7 +188,7 @@ export default function LandingScreen() {
         </div>
 
         {/* ── Config panel — takes remaining space ── */}
-        <div className="flex-1 min-h-0 px-4 sm:px-6 lg:px-8 pb-4 max-w-6xl mx-auto w-full overflow-y-auto">
+        <div className="flex-1 min-h-0 px-3 sm:px-6 lg:px-8 pb-3 max-w-6xl mx-auto w-full overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
 
             {/* Left col — mode + difficulty + start */}
