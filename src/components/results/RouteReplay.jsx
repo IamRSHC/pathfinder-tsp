@@ -1,20 +1,19 @@
 import { MOCK_REPLAY_MOVES } from '../../utils/mockAI'
+import { useTheme }          from '../../hooks/useTheme'
 
 export default function RouteReplay() {
+  const t = useTheme()
+
   return (
-    <div className="bg-game-surface border border-game-border rounded-lg p-5">
-      <h3 className="font-display font-semibold text-game-text tracking-wider mb-4">
-        ROUTE REPLAY
+    <div className={`${t.card} p-5`}>
+      <h3 className={`${t.sectionTitle} mb-4`}>
+        {t.is ? 'Route Replay' : 'ROUTE REPLAY'}
       </h3>
       <div className="flex flex-wrap gap-1.5">
         {MOCK_REPLAY_MOVES.map(move => (
           <div
             key={move.step}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded border font-mono text-xs
-              ${move.actor === 'Human'
-                ? 'border-game-cyan/40  bg-game-cyan/5  text-game-cyan'
-                : 'border-game-amber/40 bg-game-amber/5 text-game-amber'
-              }`}
+            className={t.pill(move.actor === 'Human' ? 'human' : 'ai')}
           >
             <span>{move.actor === 'Human' ? '◈' : '◆'}</span>
             <span>{move.from}→{move.to}</span>
@@ -22,11 +21,11 @@ export default function RouteReplay() {
         ))}
       </div>
       <div className="flex gap-4 mt-4">
-        <div className="flex items-center gap-2 font-mono text-xs text-game-cyan">
-          <span>◈</span><span>Human moves</span>
+        <div className={`flex items-center gap-2 font-mono text-xs ${t.primary.text}`}>
+          <span>◈</span><span>{t.is ? 'Human moves' : 'Human moves'}</span>
         </div>
-        <div className="flex items-center gap-2 font-mono text-xs text-game-amber">
-          <span>◆</span><span>AI moves</span>
+        <div className={`flex items-center gap-2 font-mono text-xs ${t.secondary.text}`}>
+          <span>◆</span><span>{t.is ? 'AI moves' : 'AI moves'}</span>
         </div>
       </div>
     </div>

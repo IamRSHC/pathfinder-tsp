@@ -1,13 +1,24 @@
 import { MOCK_LEADERBOARD } from '../../utils/mockAI'
+import { useTheme }         from '../../hooks/useTheme'
 
 export default function LeaderboardTeaser() {
+  const t = useTheme()
+
+  const modeColor = (mode) => {
+    if (mode === 'Co-Pilot') return t.primary.text
+    if (mode === 'Solo')     return 'text-game-green'
+    return t.secondary.text
+  }
+
   return (
     <div className="rounded-lg border border-game-border bg-game-surface p-4">
       <div className="flex items-center justify-between mb-3">
-        <span className="font-display font-semibold text-sm text-game-text tracking-wider">
-          GLOBAL LEADERBOARD
+        <span className={t.header}>
+          {t.is ? 'Global Leaderboard' : 'GLOBAL LEADERBOARD'}
         </span>
-        <span className="font-mono text-xs text-game-muted">SEED: ALPHA-7</span>
+        <span className="font-mono text-xs text-game-muted">
+          {t.is ? 'Seed: Alpha-7' : 'SEED: ALPHA-7'}
+        </span>
       </div>
       <div className="space-y-2">
         {MOCK_LEADERBOARD.map(entry => (
@@ -24,12 +35,7 @@ export default function LeaderboardTeaser() {
               #{entry.rank}
             </span>
             <span className="flex-1 text-game-text truncate">{entry.name}</span>
-            <span className={`${
-              entry.mode === 'Co-Pilot' ? 'text-game-cyan' :
-              entry.mode === 'Solo'     ? 'text-game-green' : 'text-game-amber'
-            } text-xs`}>
-              {entry.mode}
-            </span>
+            <span className={`${modeColor(entry.mode)} text-xs`}>{entry.mode}</span>
             <span className="text-game-green">{entry.gap}</span>
           </div>
         ))}

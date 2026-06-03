@@ -1,6 +1,7 @@
 import { useGameStore } from '../../stores/gameStore'
 import { formatDist, computeGapPercent, formatTime } from '../../utils/tspUtils'
 import { useEffect } from 'react'
+import { useTheme }  from '../../hooks/useTheme'
 
 export default function StatsPanel({ className = '' }) {
   const {
@@ -8,7 +9,7 @@ export default function StatsPanel({ className = '' }) {
     moveHistory, humanEdges, nodes, difficulty,
     tickTime, undoLastMove, gamePhase, completeGame,
   } = useGameStore()
-
+  const t   = useTheme()
   const gap = computeGapPercent(pathLength, optimalBound)
 
   // Timer
@@ -34,67 +35,66 @@ export default function StatsPanel({ className = '' }) {
 
   return (
     <div className={`flex flex-col h-full bg-game-surface border-r border-game-border ${className}`}>
+
       {/* Header */}
       <div className="px-3 py-3 border-b border-game-border">
-        <span className="font-display font-semibold text-sm text-game-text tracking-wider">
-          STATISTICS
-        </span>
+        <span className={t.header}>{t.is ? 'Statistics' : 'STATISTICS'}</span>
       </div>
 
       {/* Core Stats */}
       <div className="px-3 py-3 space-y-4 border-b border-game-border">
-        <StatItem label="PATH LENGTH"   value={formatDist(pathLength) || '—'} color="text-game-cyan" />
-        <StatItem label="OPTIMAL BOUND" value={formatDist(optimalBound) || '—'} color="text-game-muted" />
+        <StatItem
+          label={t.is ? 'path length'   : 'PATH LENGTH'}
+          value={formatDist(pathLength) || '—'}
+          color={t.primary.text}
+        />
+        <StatItem
+          label={t.is ? 'optimal bound' : 'OPTIMAL BOUND'}
+          value={formatDist(optimalBound) || '—'}
+          color="text-game-muted"
+        />
         <div>
-          <span className="stat-label block mb-1">GAP TO OPTIMAL</span>
+          <span className="stat-label block mb-1">{t.is ? 'gap to optimal' : 'GAP TO OPTIMAL'}</span>
           <div className="flex items-center gap-2">
-            <div className="flex-1 h-1.5 bg-game-bg rounded-full overflow-hidden">
+            <div className={`flex-1 h-1.5 ${t.track}`}>
               <div
                 className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${Math.min(gap, 100)}%`,
-                  background: gap <= 10
-                    ? '#00e676'
-                    : gap <= 25
-                    ? '#ffab00'
-                    : '#ff1744',
-                }}
+                style={{ width: `${Math.min(gap, 100)}%`, background: t.gapFill(gap) }}
               />
             </div>
             <span className={`font-mono font-bold text-sm ${gapColor}`}>{gap}%</span>
           </div>
         </div>
-        <StatItem label="TIME"      value={formatTime(timeElapsed)} color="text-game-text"  />
-        <StatItem label="NODES"     value={difficulty}             color="text-game-text"  />
-        <StatItem label="EDGES SET" value={humanEdges.length}      color="text-game-amber" />
+        <StatItem label={t.is ? 'time'      : 'TIME'}      value={formatTime(timeElapsed)} color="text-game-text"  />
+        <StatItem label={t.is ? 'nodes'     : 'NODES'}     value={difficulty}              color="text-game-text"  />
+        <StatItem label={t.is ? 'edges set' : 'EDGES SET'} value={humanEdges.length}       color={t.secondary.text} />
       </div>
 
       {/* Move History */}
       <div className="flex-1 overflow-hidden flex flex-col px-3 py-3">
         <div className="flex items-center justify-between mb-2">
-          <span className="stat-label">MOVE HISTORY</span>
+          <span className="stat-label">{t.is ? 'move history' : 'MOVE HISTORY'}</span>
           <button
             onClick={undoLastMove}
             disabled={!humanEdges.length}
             className="text-game-muted hover:text-game-red font-mono text-xs
               disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
-            ↩ UNDO
+            {t.is ? '↩ undo' : '↩ UNDO'}
           </button>
         </div>
         <div className="flex-1 overflow-y-auto space-y-1">
           {moveHistory.length === 0 ? (
-            <p className="text-game-muted font-mono text-xs">No moves yet</p>
+            <p className="text-game-muted font-mono text-xs">
+              {t.is ? 'No moves yet' : 'No moves yet'}
+            </p>
           ) : (
             moveHistory.slice(0, 8).map((move, i) => (
               <div
                 key={i}
-                className="flex items-center gap-2 font-mono text-xs py-1
-                  border-b border-game-border/50"
+                className="flex items-center gap-2 font-mono text-xs py-1 border-b border-game-border/50"
               >
-                <span className={
-                  move.type === 'human' ? 'text-game-cyan' : 'text-game-amber'
-                }>
+                <span className={move.type === 'human' ? t.primary.text : t.secondary.text}>
                   {move.type === 'human' ? '◈' : '◆'}
                 </span>
                 <span className="text-game-muted">{move.edge.from}→{move.edge.to}</span>
@@ -124,14 +124,19 @@ function StatItem({ label, value, color }) {
 
 function ModeBadge() {
   const { mode } = useGameStore()
+  const t = useTheme()
+
   const config = {
-    solo:    { label: 'SOLO RUN',    color: 'text-game-green',  border: 'border-game-green/40'  },
-    copilot: { label: 'CO-PILOT',    color: 'text-game-cyan',   border: 'border-game-cyan/40'   },
-    vs:      { label: 'VS AI',       color: 'text-game-amber',  border: 'border-game-amber/40'  },
-  }[mode] || { label: 'UNKNOWN', color: 'text-game-muted', border: 'border-game-border' }
+    solo:    { labelC: 'SOLO RUN', labelS: 'Solo Run', color: 'text-game-green', border: t.success.border },
+    copilot: { labelC: 'CO-PILOT', labelS: 'Co-Pilot', color: t.primary.text,   border: t.primary.border },
+    vs:      { labelC: 'VS AI',    labelS: 'Vs AI',    color: t.secondary.text, border: t.secondary.border },
+  }[mode] || { labelC: 'UNKNOWN', labelS: 'Unknown', color: 'text-game-muted', border: 'border-game-border' }
+
   return (
     <div className={`flex items-center justify-center py-1 rounded border ${config.border}`}>
-      <span className={`font-mono font-bold text-xs ${config.color}`}>{config.label}</span>
+      <span className={`font-mono font-bold text-xs ${config.color}`}>
+        {t.is ? config.labelS : config.labelC}
+      </span>
     </div>
   )
 }

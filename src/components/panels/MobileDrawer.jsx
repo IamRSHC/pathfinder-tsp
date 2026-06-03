@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react'
-import { gsap } from 'gsap'
-import { useUiStore }  from '../../stores/uiStore'
-import AIPanel         from './AIPanel'
-import StatsPanel      from './StatsPanel'
+import { gsap }          from 'gsap'
+import { useUiStore }    from '../../stores/uiStore'
+import { useTheme }      from '../../hooks/useTheme'
+import AIPanel           from './AIPanel'
+import StatsPanel        from './StatsPanel'
 
 export default function MobileDrawer() {
   const { mobileDrawerOpen, activeDrawerTab, closeDrawer, setActiveDrawerTab } = useUiStore()
+  const t = useTheme()
   const drawerRef = useRef(null)
 
   useEffect(() => {
@@ -46,12 +48,11 @@ export default function MobileDrawer() {
             <button
               key={tab}
               onClick={() => setActiveDrawerTab(tab)}
-              className={`flex-1 py-2 font-mono text-xs font-bold tracking-wider transition-colors
-                ${activeDrawerTab === tab
-                  ? 'text-game-cyan border-b-2 border-game-cyan'
-                  : 'text-game-muted'}`}
+              className={`flex-1 py-2 transition-colors ${t.tab(activeDrawerTab === tab)}`}
             >
-              {tab === 'ai' ? '🤖 AI PANEL' : '📊 STATS'}
+              {tab === 'ai'
+                ? (t.is ? '🤖 AI Panel' : '🤖 AI PANEL')
+                : (t.is ? '📊 Stats'    : '📊 STATS')}
             </button>
           ))}
         </div>
@@ -59,7 +60,7 @@ export default function MobileDrawer() {
         {/* Content */}
         <div className="overflow-y-auto" style={{ maxHeight: 'calc(75vh - 80px)' }}>
           {activeDrawerTab === 'ai'
-            ? <AIPanel className="border-none" />
+            ? <AIPanel    className="border-none" />
             : <StatsPanel className="border-none" />
           }
         </div>

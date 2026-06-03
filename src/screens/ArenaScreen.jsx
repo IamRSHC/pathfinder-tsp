@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import { useNavigate }    from 'react-router-dom'
 import GameCanvas         from '../components/canvas/GameCanvas'
 import AIPanel            from '../components/panels/AIPanel'
@@ -7,24 +7,34 @@ import MobileDrawer       from '../components/panels/MobileDrawer'
 import Navbar             from '../components/ui/Navbar'
 import { useGameStore }   from '../stores/gameStore'
 import { useUiStore }     from '../stores/uiStore'
+import { useTheme }       from '../hooks/useTheme'
 
 export default function ArenaScreen() {
   const navigate = useNavigate()
   const { gamePhase, resetGame, difficulty } = useGameStore()
   const { mobileDrawerOpen, openDrawer, notification } = useUiStore()
+  const t = useTheme()
 
-  // Navigate to results when game completes
   useEffect(() => {
     if (gamePhase === 'complete') {
       setTimeout(() => navigate('/results'), 800)
     }
   }, [gamePhase])
 
+  // Notification colour sets
+  const notifCls = notification
+    ? notification.type === 'success'
+      ? `${t.success.bg} ${t.success.border} ${t.success.text}`
+      : notification.type === 'warn'
+      ? `${t.secondary.bg} ${t.secondary.border} ${t.secondary.text}`
+      : `${t.primary.bg} ${t.primary.border} ${t.primary.text}`
+    : ''
+
   return (
     <div className="flex flex-col h-screen bg-game-bg overflow-hidden">
       <Navbar />
 
-      {/* Main arena — desktop 3-panel / tablet+mobile stacked */}
+      {/* Main arena — desktop 3-panel / mobile stacked */}
       <div className="flex flex-1 overflow-hidden">
 
         {/* Panel C: Stats — left, desktop only */}
@@ -42,18 +52,21 @@ export default function ArenaScreen() {
             bg-game-surface/95 border-t border-game-border px-4 py-2 backdrop-blur-sm">
             <button
               onClick={() => openDrawer('stats')}
-              className="flex items-center gap-2 font-mono text-xs text-game-muted hover:text-game-cyan transition-colors"
+              className={`flex items-center gap-2 font-mono text-xs text-game-muted transition-colors
+                ${t.is ? 'hover:text-game-cyan' : 'hover:text-game-cyan'}`}
             >
-              📊 STATS
+              📊 {t.is ? 'Stats' : 'STATS'}
             </button>
             <div className="font-mono text-xs text-game-muted">
-              {difficulty} NODES
+              {difficulty} {t.is ? 'nodes' : 'NODES'}
             </div>
             <button
               onClick={() => openDrawer('ai')}
-              className="flex items-center gap-2 font-mono text-xs text-game-muted hover:text-game-amber transition-colors"
+              className={`flex items-center gap-2 font-mono text-xs text-game-muted transition-colors
+                ${t.is ? 'hover:text-game-amber' : 'hover:text-game-amber'}`}
             >
-              🤖 AI <span className="w-2 h-2 rounded-full bg-game-green inline-block ml-1" />
+              🤖 {t.is ? 'AI' : 'AI'}{' '}
+              <span className="w-2 h-2 rounded-full bg-game-green inline-block ml-1" />
             </button>
           </div>
         </div>
@@ -71,11 +84,8 @@ export default function ArenaScreen() {
       {notification && (
         <div className={`fixed top-16 left-1/2 -translate-x-1/2 z-50
           px-4 py-2 rounded border font-mono text-xs font-bold
-          animate-slide-up shadow-lg
-          ${notification.type === 'success' ? 'bg-game-green/10  border-game-green/40  text-game-green'  :
-            notification.type === 'warn'    ? 'bg-game-amber/10  border-game-amber/40  text-game-amber'  :
-                                              'bg-game-cyan/10   border-game-cyan/40   text-game-cyan'   }
-        `}>
+          animate-slide-up shadow-lg ${notifCls}`}
+        >
           {notification.msg}
         </div>
       )}
@@ -85,10 +95,14 @@ export default function ArenaScreen() {
         <div className="absolute inset-0 bg-game-bg/80 flex items-center justify-center z-50 backdrop-blur-sm">
           <div className="text-center animate-fade-in">
             <div className="text-5xl mb-4">✓</div>
-            <h2 className="font-display font-bold text-3xl text-game-cyan glow-cyan mb-2">
-              ROUTE COMPLETE
+            <h2 className={`font-display font-bold text-3xl mb-2
+              ${t.primary.text} ${t.primary.glow}
+              ${t.is ? '' : 'tracking-wider'}`}>
+              {t.is ? 'Route Complete' : 'ROUTE COMPLETE'}
             </h2>
-            <p className="font-mono text-game-muted text-sm">Analyzing results...</p>
+            <p className="font-mono text-game-muted text-sm">
+              {t.is ? 'Analysing results…' : 'Analyzing results...'}
+            </p>
           </div>
         </div>
       )}

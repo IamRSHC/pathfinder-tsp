@@ -237,3 +237,67 @@ canvas { cursor: crosshair !important; transition: none !important; }
 /* ── Serene tracking override ───────────────────────────────────────────── */
 [data-theme="serene"] .tracking-widest { letter-spacing: 0.02em !important; }
 [data-theme="serene"] .tracking-wider  { letter-spacing: 0.01em !important; }
+/* ══════════════════════════════════════════════════════════════════════════
+   SERENE THEME — Tailwind opacity-modifier overrides
+   Tailwind generates bg-game-cyan/10 as a static rgba value at build time,
+   so it won't change when CSS variables change. We override with explicit
+   selectors here so serene colours win in both bg and border.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Primary (forest green) overrides ─────────────────────────────────── */
+[data-theme="serene"] .bg-game-cyan\/10  { background-color: rgba(45,106,79, 0.07)  !important; }
+[data-theme="serene"] .bg-game-cyan\/5   { background-color: rgba(45,106,79, 0.05)  !important; }
+[data-theme="serene"] .bg-game-cyan\/20  { background-color: rgba(45,106,79, 0.13)  !important; }
+[data-theme="serene"] .border-game-cyan\/40  { border-color: rgba(45,106,79, 0.35)  !important; }
+[data-theme="serene"] .border-game-cyan\/30  { border-color: rgba(45,106,79, 0.28)  !important; }
+[data-theme="serene"] .border-game-cyan\/50  { border-color: rgba(45,106,79, 0.50)  !important; }
+[data-theme="serene"] .hover\:bg-game-cyan\/20:hover { background-color: rgba(45,106,79, 0.13) !important; }
+
+/* ── Secondary (dusty rose) overrides ─────────────────────────────────── */
+[data-theme="serene"] .bg-game-amber\/10  { background-color: rgba(181,131,141, 0.07) !important; }
+[data-theme="serene"] .bg-game-amber\/5   { background-color: rgba(181,131,141, 0.05) !important; }
+[data-theme="serene"] .bg-game-amber\/20  { background-color: rgba(181,131,141, 0.13) !important; }
+[data-theme="serene"] .border-game-amber\/40  { border-color: rgba(181,131,141, 0.35) !important; }
+[data-theme="serene"] .border-game-amber\/30  { border-color: rgba(181,131,141, 0.28) !important; }
+[data-theme="serene"] .hover\:bg-game-amber\/20:hover { background-color: rgba(181,131,141, 0.13) !important; }
+
+/* ── Success (sage green) overrides ───────────────────────────────────── */
+[data-theme="serene"] .bg-game-green\/5   { background-color: rgba(58,125,91, 0.05) !important; }
+[data-theme="serene"] .border-game-green\/40  { border-color: rgba(58,125,91, 0.35) !important; }
+[data-theme="serene"] .border-game-green\/30  { border-color: rgba(58,125,91, 0.28) !important; }
+
+/* ── Danger overrides ──────────────────────────────────────────────────── */
+[data-theme="serene"] .bg-game-red\/10    { background-color: rgba(192,84,78, 0.07) !important; }
+[data-theme="serene"] .border-game-red\/40    { border-color: rgba(192,84,78, 0.35) !important; }
+[data-theme="serene"] .hover\:bg-game-red\/20:hover { background-color: rgba(192,84,78, 0.13) !important; }
+
+/* ── Special / purple overrides ─────────────────────────────────────────── */
+[data-theme="serene"] .bg-game-purple\/5  { background-color: rgba(109,104,117, 0.05) !important; }
+[data-theme="serene"] .border-game-purple\/30 { border-color: rgba(109,104,117, 0.30) !important; }
+
+/* ── Glow shadows on mode cards — nuke in serene ──────────────────────── */
+[data-theme="serene"] .shadow-\[0_0_20px_\#00e67633\],
+[data-theme="serene"] .shadow-\[0_0_20px_\#00e5ff33\],
+[data-theme="serene"] .shadow-\[0_0_20px_\#ffab0033\] {
+  box-shadow: var(--shadow-card) !important;
+}
+
+/* ── Serene: border-current opacity on mode card selected state ─────────── */
+[data-theme="serene"] .border-game-green { border-color: rgba(58,125,91,  0.50) !important; }
+[data-theme="serene"] .border-game-cyan  { border-color: rgba(45,106,79,  0.50) !important; }
+[data-theme="serene"] .border-game-amber { border-color: rgba(181,131,141,0.50) !important; }
+
+/* ── Serene: notification toast borders  ───────────────────────────────── */
+[data-theme="serene"] .border-game-cyan\/40  { border-color: rgba(45,106,79,  0.35) !important; }
+[data-theme="serene"] .border-game-amber\/40 { border-color: rgba(181,131,141,0.35) !important; }
+[data-theme="serene"] .border-game-green\/40 { border-color: rgba(58,125,91,  0.35) !important; }
+
+/* ── Serene: kill all text-shadows not already handled ──────────────────── */
+[data-theme="serene"] * { text-shadow: none !important; }
+
+/* ── Serene: letter-spacing cleanup on tracking-wider / widest ─────────── */
+[data-theme="serene"] .tracking-wider  { letter-spacing: 0.01em  !important; }
+[data-theme="serene"] .tracking-widest { letter-spacing: 0.02em  !important; }
+
+/* ── Serene: bg-current overrides in DifficultyDial / tab active states ── */
+[data-theme="serene"] .bg-current\/10 { background-color: color-mix(in srgb, currentColor 10%, transparent) !important; }
