@@ -18,13 +18,13 @@ export default function LandingScreen() {
   const { mode, difficulty, setMode, setDifficulty, resetGame } = useGameStore()
   const { reset: resetAi } = useAiStore()
 
-  // ── Hero entrance animation ──────────────────────────────────────────────
+  // ── Hero entrance ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!heroRef.current) return
     gsap.fromTo(
       heroRef.current,
-      { y: 30, opacity: 0 },
-      { y: 0,  opacity: 1, duration: 0.8, ease: 'power3.out' }
+      { y: 20, opacity: 0 },
+      { y: 0,  opacity: 1, duration: 0.7, ease: 'power3.out' }
     )
   }, [])
 
@@ -55,7 +55,6 @@ export default function LandingScreen() {
       const lineOpacity = t.is ? 0.08         : 0.12
       const dotColor    = t.is ? '45,106,79'  : '0,229,255'
 
-      // Edges
       ctx.strokeStyle = `rgba(${lineColor}, ${lineOpacity})`
       ctx.lineWidth   = t.is ? 1 : 1.5
       ctx.setLineDash([6, 4])
@@ -68,17 +67,13 @@ export default function LandingScreen() {
       ctx.stroke()
       ctx.setLineDash([])
 
-      // Nodes
       nodes.forEach((n, i) => {
         const pulse     = 0.5 + 0.5 * Math.sin(time * 2 + i * 0.7)
         const baseAlpha = t.is ? 0.18 : 0.3
-
         ctx.beginPath()
         ctx.arc(n.x, n.y, (t.is ? 4 : 5) + pulse * 2, 0, Math.PI * 2)
         ctx.fillStyle = `rgba(${dotColor}, ${baseAlpha + pulse * (t.is ? 0.2 : 0.4)})`
         ctx.fill()
-
-        // Glow ring — cyber only
         if (!t.is) {
           ctx.beginPath()
           ctx.arc(n.x, n.y, 14 + pulse * 4, 0, Math.PI * 2)
@@ -96,7 +91,7 @@ export default function LandingScreen() {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', resize)
     }
-  }, [t.is]) // re-runs on theme change
+  }, [t.is])
 
   const handleStart = () => {
     resetGame()
@@ -105,7 +100,8 @@ export default function LandingScreen() {
   }
 
   return (
-    <div className="relative min-h-screen grid-bg flex flex-col overflow-hidden">
+    // ── Full viewport, no scroll — everything fits in 100vh ──────────────
+    <div className="relative h-screen grid-bg flex flex-col overflow-hidden">
 
       {/* Animated BG canvas */}
       <canvas
@@ -129,109 +125,79 @@ export default function LandingScreen() {
           bg-game-cyan/5 rounded-full blur-3xl pointer-events-none" />
       )}
 
-      {/* Page content */}
-      <div className="relative z-10 flex flex-col min-h-screen">
+      {/* ── Page content: Navbar + scrollable inner area ─────────────────── */}
+      <div className="relative z-10 flex flex-col h-full">
         <Navbar />
 
-        {/* ── Top info bar ── */}
-        <div
-          className="flex items-center justify-between px-6 py-4"
-          style={{ borderBottom: '1px solid var(--color-border)' }}
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className="w-2 h-2 rounded-full animate-pulse"
-              style={{ background: 'var(--color-primary)' }}
-            />
-            <span className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-muted)' }}>
-              {t.is ? 'NITT Summer Internship 2026' : 'NITT SUMMER INTERNSHIP 2026'}
-            </span>
-          </div>
-          <span
-            className="hidden sm:block text-xs"
-            style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-muted)' }}
-          >
-            {t.is ? 'Human × AI · Collaborative NP-Hard Solving'
-                  : 'Human × AI Collaborative NP-Hard Solving'}
-          </span>
-        </div>
+        {/* 
+          Inner area: flex-1, no overflow-y scroll on desktop.
+          On very small screens (< 640px) we allow scroll so nothing is clipped.
+        */}
+        <div className="flex-1 overflow-y-auto sm:overflow-y-hidden px-4 sm:px-6 lg:px-8 py-4
+          max-w-6xl mx-auto w-full flex flex-col gap-4">
 
-        {/* ── Hero ── */}
-        <div
-          ref={heroRef}
-          className="flex flex-col items-center justify-center pt-16 pb-8 px-6 text-center"
-        >
-          {/* Badge */}
-          <div className="mb-4">
+          {/* ── Compact hero — title + tagline only, minimal vertical space ── */}
+          <div ref={heroRef} className="flex flex-col items-center text-center pt-1 pb-2">
+
+            {/* TSP badge */}
             <span
-              className="text-xs px-3 py-1 rounded"
+              className="inline-block text-xs px-3 py-0.5 rounded mb-2"
               style={{
                 fontFamily:    'var(--font-mono)',
                 color:         'var(--color-primary)',
                 border:        '1px solid var(--color-primary)',
                 background:    t.is ? 'rgba(45,106,79,0.06)' : 'rgba(0,229,255,0.05)',
                 letterSpacing: t.is ? '0.05em' : '0.12em',
-                opacity:       0.9,
               }}
             >
               {t.is ? 'TSP · Traveling Salesman Problem' : 'TSP // TRAVELING SALESMAN PROBLEM'}
             </span>
+
+            {/* Title — smaller clamp so it doesn't eat vertical space */}
+            <h1
+              className="font-bold leading-none mb-1"
+              style={{
+                fontFamily:    'var(--font-display)',
+                fontSize:      'clamp(2rem, 6vw, 3.5rem)',
+                letterSpacing: t.is ? '-0.02em' : '-0.01em',
+                color:         t.is ? 'var(--color-text)' : '#ffffff',
+              }}
+            >
+              {t.is ? 'Path' : 'PATH'}
+              <span className={t.primary.glow} style={{ color: 'var(--color-primary)' }}>
+                {t.is ? 'finder' : 'FINDER'}
+              </span>
+            </h1>
+
+            {/* Tagline */}
+            <p
+              className="text-base sm:text-lg max-w-md leading-snug"
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+            >
+              Can you outthink a machine?
+            </p>
           </div>
 
-          {/* Title */}
-          <h1
-            className="font-bold leading-none mb-4"
-            style={{
-              fontFamily:    'var(--font-display)',
-              fontSize:      'clamp(3rem, 10vw, 6rem)',
-              letterSpacing: t.is ? '-0.02em' : '-0.01em',
-              color:         t.is ? 'var(--color-text)' : '#ffffff',
-            }}
-          >
-            {t.is ? 'Path' : 'PATH'}
-            <span
-              className={t.primary.glow}
-              style={{ color: 'var(--color-primary)' }}
-            >
-              {t.is ? 'finder' : 'FINDER'}
-            </span>
-          </h1>
+          {/* ── Main config grid ─────────────────────────────────────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
 
-          {/* Tagline */}
-          <p
-            className="text-xl sm:text-2xl max-w-lg leading-relaxed"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
-          >
-            Can you outthink a machine?
-          </p>
+            {/* Left: mode cards + difficulty + start */}
+            <div className="lg:col-span-2 flex flex-col gap-3">
 
-          <p
-            className="text-xs mt-2 max-w-md"
-            style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-muted)', opacity: 0.6 }}
-          >
-            Neither human nor AI solves it alone. The collaboration is the discovery.
-          </p>
-        </div>
-
-        {/* ── Config panel ── */}
-        <div className="flex-1 px-4 sm:px-6 lg:px-8 pb-8 max-w-6xl mx-auto w-full">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            {/* Left col — mode + difficulty + start */}
-            <div className="lg:col-span-2 space-y-4">
-              <span className="stat-label block">
+              <span className="stat-label">
                 {t.is ? 'select mode' : 'SELECT MODE'}
               </span>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Mode cards — fixed height rows so they don't expand */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {['solo', 'copilot', 'vs'].map(m => (
                   <ModeCard key={m} mode={m} selected={mode === m} onClick={setMode} />
                 ))}
               </div>
 
-              {/* Difficulty dial */}
+              {/* Difficulty */}
               <div
-                className="rounded-lg p-5"
+                className="rounded-lg px-4 py-3"
                 style={{
                   background: 'var(--color-surface)',
                   border:     '1px solid var(--color-border)',
@@ -244,7 +210,7 @@ export default function LandingScreen() {
               {/* Start button */}
               <button
                 onClick={handleStart}
-                className="w-full py-4 font-bold text-xl active:scale-95 transition-all duration-200"
+                className="w-full py-3 font-bold text-lg active:scale-[0.98] transition-all duration-150"
                 style={{
                   fontFamily:    'var(--font-display)',
                   letterSpacing: t.is ? '0.04em' : '0.15em',
@@ -254,31 +220,35 @@ export default function LandingScreen() {
                   boxShadow:     t.is
                     ? '0 2px 12px rgba(45,106,79,0.25)'
                     : '0 0 30px rgba(0,229,255,0.2)',
-                  border: 'none',
-                  cursor: 'pointer',
+                  border:  'none',
+                  cursor:  'pointer',
+                  /* ── MOBILE: minimum touch target ── */
+                  minHeight: '48px',
                 }}
               >
                 {t.is ? 'Begin Routing' : 'INITIATE ROUTING'}
               </button>
             </div>
 
-            {/* Right col — leaderboard + apps */}
-            <div className="space-y-4">
-              <LeaderboardTeaser />
+            {/* Right: leaderboard + applications */}
+            <div className="flex flex-col gap-3 min-h-0">
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <LeaderboardTeaser />
+              </div>
 
               {/* Real-world applications */}
               <div
-                className="rounded-lg p-4"
+                className="rounded-lg px-4 py-3"
                 style={{
                   background: 'var(--color-surface)',
                   border:     '1px solid var(--color-border)',
                   boxShadow:  'var(--shadow-card)',
                 }}
               >
-                <span className="stat-label block mb-3">
+                <span className="stat-label block mb-2">
                   {t.is ? 'real-world applications' : 'REAL-WORLD APPLICATIONS'}
                 </span>
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                   {[
                     { icon: '💊', label: 'Drug Discovery',     cyberCls: 'text-game-green',  sereneColor: '#3A7D5B' },
                     { icon: '🔬', label: 'Genome Sequencing',  cyberCls: 'text-game-cyan',   sereneColor: '#2D6A4F' },
@@ -287,7 +257,7 @@ export default function LandingScreen() {
                   ].map(a => (
                     <div
                       key={a.label}
-                      className="flex items-center gap-2 text-xs"
+                      className="flex items-center gap-1.5 text-xs"
                       style={{ fontFamily: 'var(--font-mono)' }}
                     >
                       <span>{a.icon}</span>

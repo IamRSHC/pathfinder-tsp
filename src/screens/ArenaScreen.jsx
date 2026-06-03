@@ -7,14 +7,27 @@ import MobileDrawer       from '../components/panels/MobileDrawer'
 import Navbar             from '../components/ui/Navbar'
 import { useGameStore }   from '../stores/gameStore'
 import { useUiStore }     from '../stores/uiStore'
+import { useAiStore }     from '../stores/aiStore'
 import { useTheme }       from '../hooks/useTheme'
 
 export default function ArenaScreen() {
   const navigate = useNavigate()
   const { gamePhase, resetGame, difficulty } = useGameStore()
+  const { reset: resetAi } = useAiStore()
   const { mobileDrawerOpen, openDrawer, notification } = useUiStore()
   const t = useTheme()
 
+  // ── BUG FIX: reset game state when ArenaScreen unmounts so that if
+  //    the user navigates back (Lobby → Arena again) the canvas re-spawns
+  //    cleanly from 'idle' rather than finding stale 'routing' state. ──────
+  useEffect(() => {
+    return () => {
+      resetGame()
+      resetAi()
+    }
+  }, [])
+
+  // Navigate to results when game completes
   useEffect(() => {
     if (gamePhase === 'complete') {
       setTimeout(() => navigate('/results'), 800)
@@ -52,8 +65,8 @@ export default function ArenaScreen() {
             bg-game-surface/95 border-t border-game-border px-4 py-2 backdrop-blur-sm">
             <button
               onClick={() => openDrawer('stats')}
-              className={`flex items-center gap-2 font-mono text-xs text-game-muted transition-colors
-                ${t.is ? 'hover:text-game-cyan' : 'hover:text-game-cyan'}`}
+              className="flex items-center gap-2 font-mono text-xs text-game-muted
+                hover:text-game-cyan transition-colors min-h-[44px] px-3"
             >
               📊 {t.is ? 'Stats' : 'STATS'}
             </button>
@@ -62,8 +75,8 @@ export default function ArenaScreen() {
             </div>
             <button
               onClick={() => openDrawer('ai')}
-              className={`flex items-center gap-2 font-mono text-xs text-game-muted transition-colors
-                ${t.is ? 'hover:text-game-amber' : 'hover:text-game-amber'}`}
+              className="flex items-center gap-2 font-mono text-xs text-game-muted
+                hover:text-game-amber transition-colors min-h-[44px] px-3"
             >
               🤖 {t.is ? 'AI' : 'AI'}{' '}
               <span className="w-2 h-2 rounded-full bg-game-green inline-block ml-1" />
