@@ -18,12 +18,12 @@ export default function LandingScreen() {
   const { mode, difficulty, setMode, setDifficulty, resetGame } = useGameStore()
   const { reset: resetAi } = useAiStore()
 
-  // ── Hero entrance ────────────────────────────────────────────────────────
+  // ── Hero entrance animation ──────────────────────────────────────────────
   useEffect(() => {
     if (!heroRef.current) return
     gsap.fromTo(
       heroRef.current,
-      { y: 20, opacity: 0 },
+      { y: 24, opacity: 0 },
       { y: 0,  opacity: 1, duration: 0.7, ease: 'power3.out' }
     )
   }, [])
@@ -70,10 +70,12 @@ export default function LandingScreen() {
       nodes.forEach((n, i) => {
         const pulse     = 0.5 + 0.5 * Math.sin(time * 2 + i * 0.7)
         const baseAlpha = t.is ? 0.18 : 0.3
+
         ctx.beginPath()
         ctx.arc(n.x, n.y, (t.is ? 4 : 5) + pulse * 2, 0, Math.PI * 2)
         ctx.fillStyle = `rgba(${dotColor}, ${baseAlpha + pulse * (t.is ? 0.2 : 0.4)})`
         ctx.fill()
+
         if (!t.is) {
           ctx.beginPath()
           ctx.arc(n.x, n.y, 14 + pulse * 4, 0, Math.PI * 2)
@@ -100,7 +102,6 @@ export default function LandingScreen() {
   }
 
   return (
-    // ── Full viewport, no scroll — everything fits in 100vh ──────────────
     <div className="relative h-screen grid-bg flex flex-col overflow-hidden">
 
       {/* Animated BG canvas */}
@@ -125,79 +126,86 @@ export default function LandingScreen() {
           bg-game-cyan/5 rounded-full blur-3xl pointer-events-none" />
       )}
 
-      {/* ── Page content: Navbar + scrollable inner area ─────────────────── */}
+      {/* Page content — fills full viewport height, no overflow scroll */}
       <div className="relative z-10 flex flex-col h-full">
         <Navbar />
 
-        {/* 
-          Inner area: flex-1, no overflow-y scroll on desktop.
-          On very small screens (< 640px) we allow scroll so nothing is clipped.
-        */}
-        <div className="flex-1 overflow-y-auto sm:overflow-y-hidden px-4 sm:px-6 lg:px-8 py-4
-          max-w-6xl mx-auto w-full flex flex-col gap-4">
-
-          {/* ── Compact hero — title + tagline only, minimal vertical space ── */}
-          <div ref={heroRef} className="flex flex-col items-center text-center pt-1 pb-2">
-
-            {/* TSP badge */}
+        {/* ── Hero ── */}
+        <div
+          ref={heroRef}
+          className="flex flex-col items-center justify-center pt-5 pb-3 px-6 text-center"
+        >
+          {/* Badge */}
+          <div className="mb-3">
             <span
-              className="inline-block text-xs px-3 py-0.5 rounded mb-2"
+              className="text-xs px-3 py-1 rounded"
               style={{
                 fontFamily:    'var(--font-mono)',
                 color:         'var(--color-primary)',
                 border:        '1px solid var(--color-primary)',
                 background:    t.is ? 'rgba(45,106,79,0.06)' : 'rgba(0,229,255,0.05)',
                 letterSpacing: t.is ? '0.05em' : '0.12em',
+                opacity:       0.9,
               }}
             >
               {t.is ? 'TSP · Traveling Salesman Problem' : 'TSP // TRAVELING SALESMAN PROBLEM'}
             </span>
-
-            {/* Title — smaller clamp so it doesn't eat vertical space */}
-            <h1
-              className="font-bold leading-none mb-1"
-              style={{
-                fontFamily:    'var(--font-display)',
-                fontSize:      'clamp(2rem, 6vw, 3.5rem)',
-                letterSpacing: t.is ? '-0.02em' : '-0.01em',
-                color:         t.is ? 'var(--color-text)' : '#ffffff',
-              }}
-            >
-              {t.is ? 'Path' : 'PATH'}
-              <span className={t.primary.glow} style={{ color: 'var(--color-primary)' }}>
-                {t.is ? 'finder' : 'FINDER'}
-              </span>
-            </h1>
-
-            {/* Tagline */}
-            <p
-              className="text-base sm:text-lg max-w-md leading-snug"
-              style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
-            >
-              Can you outthink a machine?
-            </p>
           </div>
 
-          {/* ── Main config grid ─────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
+          {/* Title */}
+          <h1
+            className="font-bold leading-none mb-3"
+            style={{
+              fontFamily:    'var(--font-display)',
+              fontSize:      'clamp(2.6rem, 8vw, 5.5rem)',
+              letterSpacing: t.is ? '-0.02em' : '-0.01em',
+              color:         t.is ? 'var(--color-text)' : '#ffffff',
+            }}
+          >
+            {t.is ? 'Path' : 'PATH'}
+            <span
+              className={t.primary.glow}
+              style={{ color: 'var(--color-primary)' }}
+            >
+              {t.is ? 'finder' : 'FINDER'}
+            </span>
+          </h1>
 
-            {/* Left: mode cards + difficulty + start */}
-            <div className="lg:col-span-2 flex flex-col gap-3">
+          {/* Tagline */}
+          <p
+            className="text-lg sm:text-xl max-w-lg leading-relaxed"
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}
+          >
+            Can you outthink a machine?
+          </p>
 
-              <span className="stat-label">
+          <p
+            className="text-xs mt-1 max-w-md"
+            style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-muted)', opacity: 0.6 }}
+          >
+            Neither human nor AI solves it alone. The collaboration is the discovery.
+          </p>
+        </div>
+
+        {/* ── Config panel — takes remaining space ── */}
+        <div className="flex-1 min-h-0 px-4 sm:px-6 lg:px-8 pb-4 max-w-6xl mx-auto w-full overflow-y-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
+
+            {/* Left col — mode + difficulty + start */}
+            <div className="lg:col-span-2 space-y-3">
+              <span className="stat-label block">
                 {t.is ? 'select mode' : 'SELECT MODE'}
               </span>
 
-              {/* Mode cards — fixed height rows so they don't expand */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {['solo', 'copilot', 'vs'].map(m => (
                   <ModeCard key={m} mode={m} selected={mode === m} onClick={setMode} />
                 ))}
               </div>
 
-              {/* Difficulty */}
+              {/* Difficulty dial */}
               <div
-                className="rounded-lg px-4 py-3"
+                className="rounded-lg p-4"
                 style={{
                   background: 'var(--color-surface)',
                   border:     '1px solid var(--color-border)',
@@ -210,7 +218,7 @@ export default function LandingScreen() {
               {/* Start button */}
               <button
                 onClick={handleStart}
-                className="w-full py-3 font-bold text-lg active:scale-[0.98] transition-all duration-150"
+                className="w-full py-4 font-bold text-xl active:scale-95 transition-all duration-200"
                 style={{
                   fontFamily:    'var(--font-display)',
                   letterSpacing: t.is ? '0.04em' : '0.15em',
@@ -220,35 +228,31 @@ export default function LandingScreen() {
                   boxShadow:     t.is
                     ? '0 2px 12px rgba(45,106,79,0.25)'
                     : '0 0 30px rgba(0,229,255,0.2)',
-                  border:  'none',
-                  cursor:  'pointer',
-                  /* ── MOBILE: minimum touch target ── */
-                  minHeight: '48px',
+                  border: 'none',
+                  cursor: 'pointer',
                 }}
               >
                 {t.is ? 'Begin Routing' : 'INITIATE ROUTING'}
               </button>
             </div>
 
-            {/* Right: leaderboard + applications */}
-            <div className="flex flex-col gap-3 min-h-0">
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <LeaderboardTeaser />
-              </div>
+            {/* Right col — leaderboard + apps */}
+            <div className="space-y-3">
+              <LeaderboardTeaser />
 
               {/* Real-world applications */}
               <div
-                className="rounded-lg px-4 py-3"
+                className="rounded-lg p-4"
                 style={{
                   background: 'var(--color-surface)',
                   border:     '1px solid var(--color-border)',
                   boxShadow:  'var(--shadow-card)',
                 }}
               >
-                <span className="stat-label block mb-2">
+                <span className="stat-label block mb-3">
                   {t.is ? 'real-world applications' : 'REAL-WORLD APPLICATIONS'}
                 </span>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                <div className="space-y-2">
                   {[
                     { icon: '💊', label: 'Drug Discovery',     cyberCls: 'text-game-green',  sereneColor: '#3A7D5B' },
                     { icon: '🔬', label: 'Genome Sequencing',  cyberCls: 'text-game-cyan',   sereneColor: '#2D6A4F' },
@@ -257,7 +261,7 @@ export default function LandingScreen() {
                   ].map(a => (
                     <div
                       key={a.label}
-                      className="flex items-center gap-1.5 text-xs"
+                      className="flex items-center gap-2 text-xs"
                       style={{ fontFamily: 'var(--font-mono)' }}
                     >
                       <span>{a.icon}</span>

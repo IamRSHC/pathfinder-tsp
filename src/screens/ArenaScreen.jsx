@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate }    from 'react-router-dom'
 import GameCanvas         from '../components/canvas/GameCanvas'
 import AIPanel            from '../components/panels/AIPanel'
@@ -11,19 +11,31 @@ import { useAiStore }     from '../stores/aiStore'
 import { useTheme }       from '../hooks/useTheme'
 
 export default function ArenaScreen() {
-  const navigate = useNavigate()
-  const { gamePhase, resetGame, difficulty } = useGameStore()
-  const { reset: resetAi } = useAiStore()
+  const navigate    = useNavigate()
+  const mountedOnce = useRef(false)
+
+  const { gamePhase, resetGame, difficulty, nodes } = useGameStore()
   const { mobileDrawerOpen, openDrawer, notification } = useUiStore()
+  const { reset: resetAi } = useAiStore()
   const t = useTheme()
 
-  // ── BUG FIX: reset game state when ArenaScreen unmounts so that if
-  //    the user navigates back (Lobby → Arena again) the canvas re-spawns
-  //    cleanly from 'idle' rather than finding stale 'routing' state. ──────
+  // ── FIX: always reset when Arena mounts ─────────────────────────────────
+  // Zustand store persists across navigation; Pixi app is destroyed on unmount.
+  // Without this reset, gamePhase stays 'routing'/'complete' so GameCanvas
+  // never calls spawnNodes() again → blank screen.
   useEffect(() => {
+    if (!mountedOnce.current) {
+      mountedOnce.current = true
+      // Only reset if we have stale state from a previous session
+      const { gamePhase: phase } = useGameStore.getState()
+      if (phase !== 'idle') {
+        resetGame()
+        resetAi()
+      }
+    }
+    // Cleanup: reset on unmount so next mount starts clean
     return () => {
-      resetGame()
-      resetAi()
+      mountedOnce.current = false
     }
   }, [])
 
@@ -65,8 +77,8 @@ export default function ArenaScreen() {
             bg-game-surface/95 border-t border-game-border px-4 py-2 backdrop-blur-sm">
             <button
               onClick={() => openDrawer('stats')}
-              className="flex items-center gap-2 font-mono text-xs text-game-muted
-                hover:text-game-cyan transition-colors min-h-[44px] px-3"
+              className={`flex items-center gap-2 font-mono text-xs text-game-muted transition-colors
+                ${t.is ? 'hover:text-game-cyan' : 'hover:text-game-cyan'}`}
             >
               📊 {t.is ? 'Stats' : 'STATS'}
             </button>
@@ -75,8 +87,8 @@ export default function ArenaScreen() {
             </div>
             <button
               onClick={() => openDrawer('ai')}
-              className="flex items-center gap-2 font-mono text-xs text-game-muted
-                hover:text-game-amber transition-colors min-h-[44px] px-3"
+              className={`flex items-center gap-2 font-mono text-xs text-game-muted transition-colors
+                ${t.is ? 'hover:text-game-amber' : 'hover:text-game-amber'}`}
             >
               🤖 {t.is ? 'AI' : 'AI'}{' '}
               <span className="w-2 h-2 rounded-full bg-game-green inline-block ml-1" />

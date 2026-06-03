@@ -33,6 +33,10 @@ const THEME_COLORS = {
   },
 }
 
+// ── Touch-friendly hit radius ─────────────────────────────────────────────
+// 44px is Apple's HIG minimum tap target; 28px canvas radius covers it.
+const HIT_RADIUS = 28
+
 export function usePixiGame(containerRef) {
   const appRef        = useRef(null)
   const nodesGfxRef   = useRef([])
@@ -60,6 +64,10 @@ export function usePixiGame(containerRef) {
       autoDensity:     true,
     })
     container.appendChild(app.view)
+
+    // Prevent iOS/Android scroll while interacting with the canvas
+    app.view.style.touchAction = 'none'
+
     appRef.current = app
 
     const grid = new PIXI.Graphics()
@@ -87,7 +95,6 @@ export function usePixiGame(containerRef) {
     if (!app) return
     app.renderer.backgroundColor = C.bg
 
-    // Redraw grid
     const grid = app.stage.children[0]
     if (grid && grid instanceof PIXI.Graphics) {
       grid.clear()
@@ -109,9 +116,10 @@ export function usePixiGame(containerRef) {
       container.y = node.y
       container.interactive = true
       container.buttonMode  = true
-      container.hitArea     = new PIXI.Circle(0, 0, 18)
+      // Larger hit area for finger-friendly touch — 28px radius (≈ 56px diameter touch target)
+      container.hitArea = new PIXI.Circle(0, 0, HIT_RADIUS)
 
-      // Outer glow ring
+      // Outer glow ring — slightly larger in cyber to be visually obvious
       const glow = new PIXI.Graphics()
       glow.lineStyle(theme === 'serene' ? 1 : 1.5, C.node, theme === 'serene' ? 0.18 : 0.25)
       glow.drawCircle(0, 0, 14)
@@ -143,6 +151,7 @@ export function usePixiGame(containerRef) {
 
       container.addChild(glow, circle, inner, label)
 
+      // Hover (desktop) — pointerover/out
       container.on('pointerover', () => {
         hoveredRef.current = idx
         circle.tint = 0xffffff
@@ -153,7 +162,10 @@ export function usePixiGame(containerRef) {
         circle.tint = 0xffffff
         if (selectedRef.current !== idx) glow.alpha = theme === 'serene' ? 0.1 : 0.25
       })
-      container.on('pointerdown', () => handleNodeClick(idx))
+
+      // Tap / click — pointerup fires on both touch and mouse
+      // Using pointerup instead of pointerdown avoids accidental taps during scroll attempts
+      container.on('pointerup', () => handleNodeClick(idx))
 
       app.stage.addChild(container)
       nodesGfxRef.current.push(container)
@@ -216,7 +228,7 @@ export function usePixiGame(containerRef) {
     return () => app.ticker.remove(ticker)
   }, [nodes, theme])
 
-  // ── Node click ─────────────────────────────────────────────────────────────
+  // ── Node click / tap ───────────────────────────────────────────────────────
   const handleNodeClick = useCallback((idx) => {
     const { nodes, humanEdges, gamePhase } = useGameStore.getState()
     if (gamePhase !== 'routing') return

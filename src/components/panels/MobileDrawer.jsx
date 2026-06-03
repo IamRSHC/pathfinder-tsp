@@ -37,23 +37,18 @@ export default function MobileDrawer() {
           translate-y-full"
         style={{ maxHeight: '75vh' }}
       >
-        {/* ── Handle — enlarged for easier tap/swipe ── */}
-        <div
-          className="pt-4 pb-2 cursor-pointer flex justify-center items-center"
-          onClick={closeDrawer}
-          style={{ minHeight: '44px' }}   /* 44px WCAG touch target */
-        >
+        {/* Handle */}
+        <div className="pt-3 pb-1 cursor-pointer" onClick={closeDrawer}>
           <div className="drawer-handle" />
         </div>
 
-        {/* Tabs — 44px min height for touch */}
+        {/* Tabs */}
         <div className="flex border-b border-game-border px-4">
           {['ai', 'stats'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveDrawerTab(tab)}
-              className={`flex-1 transition-colors ${t.tab(activeDrawerTab === tab)}`}
-              style={{ minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              className={`flex-1 py-2 transition-colors ${t.tab(activeDrawerTab === tab)}`}
             >
               {tab === 'ai'
                 ? (t.is ? '🤖 AI Panel' : '🤖 AI PANEL')
@@ -63,7 +58,7 @@ export default function MobileDrawer() {
         </div>
 
         {/* Content */}
-        <div className="overflow-y-auto" style={{ maxHeight: 'calc(75vh - 88px)' }}>
+        <div className="overflow-y-auto" style={{ maxHeight: 'calc(75vh - 80px)' }}>
           {activeDrawerTab === 'ai'
             ? <AIPanel    className="border-none" />
             : <StatsPanel className="border-none" />
