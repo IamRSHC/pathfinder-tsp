@@ -15,7 +15,7 @@ export default function ArenaScreen() {
   const isMounted = useRef(true)
 
   const { gamePhase, resetGame, difficulty, nodes } = useGameStore()
-  const { mobileDrawerOpen, openDrawer, notification } = useUiStore()
+  const { mobileDrawerOpen, openDrawer, notification, viewMode } = useUiStore()
   const { reset: resetAi } = useAiStore()
   const t = useTheme()
 
@@ -31,6 +31,8 @@ export default function ArenaScreen() {
     isMounted.current = true
     resetGame()
     resetAi()
+    // Reset view to 2D on each new arena session (3D is opt-in per session)
+    useUiStore.setState({ viewMode: '2d' })
     return () => {
       isMounted.current = false
       // No store resets here — intentional. See note above.

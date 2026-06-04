@@ -7,6 +7,7 @@ export const useUiStore = create((set) => ({
   showTutorial:     false,
   notification:     null,
   theme:            'cyber',
+  viewMode:         '2d',   // '2d' | '3d'
 
   toggleDrawer:       ()    => set(s => ({ mobileDrawerOpen: !s.mobileDrawerOpen })),
   openDrawer:         (tab) => set({ mobileDrawerOpen: true, activeDrawerTab: tab }),
@@ -19,6 +20,8 @@ export const useUiStore = create((set) => ({
   },
 
   setShowTutorial: (v) => set({ showTutorial: v }),
+
+  toggleViewMode: () => set(s => ({ viewMode: s.viewMode === '2d' ? '3d' : '2d' })),
 
   toggleTheme: () => set(s => {
     const next = s.theme === 'cyber' ? 'serene' : 'cyber'

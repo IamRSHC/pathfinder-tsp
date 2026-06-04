@@ -373,3 +373,26 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3D VIEW — canvas swap transitions
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Smooth fade when switching 2D↔3D visibility */
+[data-theme] canvas {
+  transition: opacity 0.25s ease;
+}
+
+/* The Three.js renderer canvas fills its container */
+.game-canvas-3d canvas {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ViewToggle pill should never inherit the global transition that
+   smooths border-color/background — it has its own transitions */
+.view-toggle-pill,
+.view-toggle-pill * {
+  transition: none !important;
+}
