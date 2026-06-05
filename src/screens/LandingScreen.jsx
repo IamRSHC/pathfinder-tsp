@@ -6,6 +6,7 @@ import DifficultyDial        from '../components/ui/DifficultyDial'
 import LeaderboardTeaser     from '../components/ui/LeaderboardTeaser'
 import Navbar                from '../components/ui/Navbar'
 import { useGameStore }      from '../stores/gameStore'
+import NodeSourcePicker      from '../components/ui/NodeSourcePicker'
 import { useAiStore }        from '../stores/aiStore'
 import { useTheme }          from '../hooks/useTheme'
 
@@ -15,7 +16,7 @@ export default function LandingScreen() {
   const bgCanvasRef = useRef(null)
   const t           = useTheme()
 
-  const { mode, difficulty, setMode, setDifficulty, resetGame } = useGameStore()
+  const { mode, difficulty, nodeSource, customRaw, standardSize, setMode, setDifficulty, resetGame } = useGameStore()
   const { reset: resetAi } = useAiStore()
 
   // ── Hero entrance animation ──────────────────────────────────────────────
@@ -203,7 +204,7 @@ export default function LandingScreen() {
                 ))}
               </div>
 
-              {/* Difficulty dial */}
+              {/* Node source picker */}
               <div
                 className="rounded-lg p-4"
                 style={{
@@ -212,8 +213,22 @@ export default function LandingScreen() {
                   boxShadow:  'var(--shadow-card)',
                 }}
               >
-                <DifficultyDial value={difficulty} onChange={setDifficulty} />
+                <NodeSourcePicker />
               </div>
+
+              {/* Difficulty dial — only for RANDOM source */}
+              {nodeSource === 'random' && (
+                <div
+                  className="rounded-lg p-4"
+                  style={{
+                    background: 'var(--color-surface)',
+                    border:     '1px solid var(--color-border)',
+                    boxShadow:  'var(--shadow-card)',
+                  }}
+                >
+                  <DifficultyDial value={difficulty} onChange={setDifficulty} />
+                </div>
+              )}
 
               {/* Start button */}
               <button

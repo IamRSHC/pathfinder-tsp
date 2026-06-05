@@ -3,204 +3,177 @@ import * as PIXI from 'pixi.js'
 import { useGameStore } from '../../stores/gameStore'
 import { useAiStore }   from '../../stores/aiStore'
 import { useUiStore }   from '../../stores/uiStore'
-import { euclidDist, generateNodes } from '../../utils/tspUtils'
+import { euclidDist, generateNodes, scaleNodesToCanvas, STANDARD_SETS, parseCustomNodes } from '../../utils/tspUtils'
+import { exceedsDegree, wouldCloseSubtour } from '../../utils/tourValidator'
 
 // ── Color sets per theme ───────────────────────────────────────────────────
 const THEME_COLORS = {
   cyber: {
-    bg:        0x090d14,
-    grid:      { r: 0,   g: 229, b: 255, a: 0.04 },
-    node:      0x00e5ff,
-    humanEdge: 0x00e5ff,
-    aiEdge:    0xffab00,
-    contested: 0xd500f9,
-    nodeInner: 0x090d14,
-    nodeFill:  0x00e5ff,
-    glowAlpha: { min: 0.15, range: 0.12 },
-    pulseScale: { min: 1, range: 0.08 },
+    bg: 0x090d14, grid: { r: 0, g: 229, b: 255, a: 0.04 },
+    node: 0x00e5ff, humanEdge: 0x00e5ff, aiEdge: 0xffab00,
+    contested: 0xd500f9, nodeInner: 0x090d14, nodeFill: 0x00e5ff,
+    startNode: 0xffd700, startGlow: 0xffa500,
+    glowAlpha: { min: 0.15, range: 0.12 }, pulseScale: { min: 1, range: 0.08 },
   },
   serene: {
-    bg:        0xF5F3EF,
-    grid:      { r: 180, g: 170, b: 155, a: 0.18 },
-    node:      0x2D6A4F,
-    humanEdge: 0x2D6A4F,
-    aiEdge:    0xB5838D,
-    contested: 0x6D6875,
-    nodeInner: 0xF5F3EF,
-    nodeFill:  0x2D6A4F,
-    glowAlpha: { min: 0.06, range: 0.05 },
-    pulseScale: { min: 1, range: 0.03 },
+    bg: 0xF5F3EF, grid: { r: 180, g: 170, b: 155, a: 0.18 },
+    node: 0x2D6A4F, humanEdge: 0x2D6A4F, aiEdge: 0xB5838D,
+    contested: 0x6D6875, nodeInner: 0xF5F3EF, nodeFill: 0x2D6A4F,
+    startNode: 0xE07B39, startGlow: 0xE07B39,
+    glowAlpha: { min: 0.06, range: 0.05 }, pulseScale: { min: 1, range: 0.03 },
   },
 }
 
-// ── Touch-friendly hit radius ─────────────────────────────────────────────
-// 44px is Apple's HIG minimum tap target; 28px canvas radius covers it.
 const HIT_RADIUS = 28
 
 export function usePixiGame(containerRef) {
-  const appRef        = useRef(null)
-  const nodesGfxRef   = useRef([])
-  const edgesGfxRef   = useRef(null)
-  const hoveredRef    = useRef(-1)
-  const selectedRef   = useRef(-1)
-  const pulseTickRef  = useRef(0)
+  const appRef       = useRef(null)
+  const nodesGfxRef  = useRef([])
+  const edgesGfxRef  = useRef(null)
+  const hoveredRef   = useRef(-1)
+  const selectedRef  = useRef(-1)
+  const pulseTickRef = useRef(0)
 
-  const { nodes, humanEdges, aiEdges, difficulty, gamePhase, setNodes, addHumanEdge } = useGameStore()
+  const { nodes, humanEdges, aiEdges, gamePhase, startNode, difficulty,
+          nodeSource, standardSize, customRaw,
+          setNodes, addHumanEdge, setStartNode } = useGameStore()
   const { suggestion, requestSuggestion } = useAiStore()
-  const { theme } = useUiStore()
-
+  const { theme, showNotification } = useUiStore()
   const C = THEME_COLORS[theme] || THEME_COLORS.cyber
 
-  // ── Init Pixi ──────────────────────────────────────────────────────────────
+  // ── Init Pixi ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current || appRef.current) return
-
     const container = containerRef.current
     const app = new PIXI.Application({
-      resizeTo:        container,
-      backgroundColor: C.bg,
-      antialias:       true,
-      resolution:      window.devicePixelRatio || 1,
-      autoDensity:     true,
+      resizeTo: container, backgroundColor: C.bg,
+      antialias: true, resolution: window.devicePixelRatio || 1, autoDensity: true,
     })
     container.appendChild(app.view)
-
-    // Prevent iOS/Android scroll while interacting with the canvas
     app.view.style.touchAction = 'none'
-
     appRef.current = app
-
     const grid = new PIXI.Graphics()
     drawGrid(grid, container.offsetWidth, container.offsetHeight, C.grid)
     app.stage.addChild(grid)
-
     const edgesGfx = new PIXI.Graphics()
     app.stage.addChild(edgesGfx)
     edgesGfxRef.current = edgesGfx
-
     const sugGfx = new PIXI.Graphics()
     sugGfx.name = 'suggestion'
     app.stage.addChild(sugGfx)
-
     return () => {
-      // Use requestAnimationFrame to defer Pixi destruction by one frame.
-      // Destroying synchronously during React's unmount/commit phase causes
-      // WebGL context teardown to race with the newly mounted screen's first
-      // paint, producing a blank flash. Deferring one frame lets React fully
-      // commit the new screen before we tear down the old GL context.
       const appToDestroy = app
       requestAnimationFrame(() => {
         try { appToDestroy.destroy(true, { children: true }) } catch (_) {}
       })
-      appRef.current = null
-      nodesGfxRef.current = []
-      edgesGfxRef.current = null
+      appRef.current = null; nodesGfxRef.current = []; edgesGfxRef.current = null
     }
   }, [])
 
-  // ── Update canvas bg + grid when theme changes ─────────────────────────────
+  // ── Theme change ──────────────────────────────────────────────────────
   useEffect(() => {
     const app = appRef.current
     if (!app) return
     app.renderer.backgroundColor = C.bg
-
     const grid = app.stage.children[0]
-    if (grid && grid instanceof PIXI.Graphics) {
+    if (grid instanceof PIXI.Graphics) {
       grid.clear()
       drawGrid(grid, app.view.width, app.view.height, C.grid)
     }
   }, [theme])
 
-  // ── Draw / redraw nodes ────────────────────────────────────────────────────
+  // ── Draw nodes ────────────────────────────────────────────────────────
   useEffect(() => {
     const app = appRef.current
     if (!app || !nodes.length) return
-
     nodesGfxRef.current.forEach(c => c.destroy())
     nodesGfxRef.current = []
 
-    nodes.forEach((node, idx) => {
-      const container = new PIXI.Container()
-      container.x = node.x
-      container.y = node.y
-      container.interactive = true
-      container.buttonMode  = true
-      // Larger hit area for finger-friendly touch — 28px radius (≈ 56px diameter touch target)
-      container.hitArea = new PIXI.Circle(0, 0, HIT_RADIUS)
+    const { startNode: sn, gamePhase: gp } = useGameStore.getState()
 
-      // Outer glow ring — slightly larger in cyber to be visually obvious
+    nodes.forEach((node, idx) => {
+      const isStart = sn === idx
+      const cont    = new PIXI.Container()
+      cont.x = node.x; cont.y = node.y
+      cont.interactive = true; cont.buttonMode = true
+      cont.hitArea = new PIXI.Circle(0, 0, HIT_RADIUS)
+
+      // Outer glow ring
       const glow = new PIXI.Graphics()
-      glow.lineStyle(theme === 'serene' ? 1 : 1.5, C.node, theme === 'serene' ? 0.18 : 0.25)
-      glow.drawCircle(0, 0, 14)
+      glow.lineStyle(isStart ? 2.5 : (theme === 'serene' ? 1 : 1.5),
+        isStart ? C.startNode : C.node,
+        isStart ? 0.8 : (theme === 'serene' ? 0.18 : 0.25))
+      glow.drawCircle(0, 0, isStart ? 18 : 14)
       glow.name = 'glow'
 
-      // Main node
+      // Second ring for start node
+      if (isStart) {
+        const ring2 = new PIXI.Graphics()
+        ring2.lineStyle(1.5, C.startGlow, 0.4)
+        ring2.drawCircle(0, 0, 24)
+        ring2.name = 'ring2'
+        cont.addChild(ring2)
+      }
+
+      // Main circle
       const circle = new PIXI.Graphics()
-      circle.beginFill(C.nodeFill, theme === 'serene' ? 0.85 : 0.9)
-      circle.drawCircle(0, 0, theme === 'serene' ? 6 : 7)
-      circle.endFill()
-      circle.name = 'circle'
+      circle.beginFill(isStart ? C.startNode : C.nodeFill,
+        theme === 'serene' ? 0.85 : 0.9)
+      circle.drawCircle(0, 0, isStart ? 9 : (theme === 'serene' ? 6 : 7))
+      circle.endFill(); circle.name = 'circle'
 
       // Inner dot
       const inner = new PIXI.Graphics()
-      inner.beginFill(C.nodeInner)
-      inner.drawCircle(0, 0, theme === 'serene' ? 2.5 : 3)
+      inner.beginFill(isStart ? C.nodeInner : C.nodeInner)
+      inner.drawCircle(0, 0, isStart ? 3.5 : (theme === 'serene' ? 2.5 : 3))
       inner.endFill()
 
       // Label
-      const label = new PIXI.Text(String(idx), {
+      const label = new PIXI.Text(isStart ? `★${idx}` : String(idx), {
         fontFamily: theme === 'serene' ? 'DM Mono' : 'JetBrains Mono',
-        fontSize:   theme === 'serene' ? 8 : 9,
-        fill:       C.node,
+        fontSize:   isStart ? 10 : (theme === 'serene' ? 8 : 9),
+        fill:       isStart ? C.startNode : C.node,
+        fontWeight: isStart ? 'bold' : 'normal',
         align:      'center',
       })
-      label.anchor.set(0.5)
-      label.y = -20
-      label.alpha = theme === 'serene' ? 0.55 : 0.7
+      label.anchor.set(0.5); label.y = isStart ? -26 : -20
+      label.alpha = isStart ? 1 : (theme === 'serene' ? 0.55 : 0.7)
 
-      container.addChild(glow, circle, inner, label)
+      cont.addChild(glow, circle, inner, label)
 
-      // Hover (desktop) — pointerover/out
-      container.on('pointerover', () => {
-        hoveredRef.current = idx
-        circle.tint = 0xffffff
-        glow.alpha  = theme === 'serene' ? 0.4 : 1
+      cont.on('pointerover', () => {
+        hoveredRef.current = idx; circle.tint = 0xffffff
+        glow.alpha = theme === 'serene' ? 0.4 : 1
       })
-      container.on('pointerout', () => {
-        hoveredRef.current = -1
-        circle.tint = 0xffffff
+      cont.on('pointerout', () => {
+        hoveredRef.current = -1; circle.tint = 0xffffff
         if (selectedRef.current !== idx) glow.alpha = theme === 'serene' ? 0.1 : 0.25
       })
+      cont.on('pointerup', () => handleNodeClick(idx))
 
-      // Tap / click — pointerup fires on both touch and mouse
-      // Using pointerup instead of pointerdown avoids accidental taps during scroll attempts
-      container.on('pointerup', () => handleNodeClick(idx))
-
-      app.stage.addChild(container)
-      nodesGfxRef.current.push(container)
+      app.stage.addChild(cont)
+      nodesGfxRef.current.push(cont)
     })
-  }, [nodes, theme])
+  }, [nodes, theme, startNode])
 
-  // ── Redraw edges ───────────────────────────────────────────────────────────
+  // ── Redraw edges ──────────────────────────────────────────────────────
   useEffect(() => {
     const gfx = edgesGfxRef.current
     if (!gfx || !nodes.length) return
     gfx.clear()
-
     humanEdges.forEach(({ from, to }) => {
       gfx.lineStyle(theme === 'serene' ? 1.5 : 2, C.humanEdge, theme === 'serene' ? 0.7 : 0.8)
       gfx.moveTo(nodes[from].x, nodes[from].y)
-      gfx.lineTo(nodes[to].x,   nodes[to].y)
+      gfx.lineTo(nodes[to].x, nodes[to].y)
     })
-
     aiEdges.forEach(({ from, to }) => {
       gfx.lineStyle(theme === 'serene' ? 1.5 : 2, C.aiEdge, theme === 'serene' ? 0.55 : 0.6)
       gfx.moveTo(nodes[from].x, nodes[from].y)
-      gfx.lineTo(nodes[to].x,   nodes[to].y)
+      gfx.lineTo(nodes[to].x, nodes[to].y)
     })
   }, [humanEdges, aiEdges, nodes, theme])
 
-  // ── Suggestion overlay ─────────────────────────────────────────────────────
+  // ── Suggestion overlay ────────────────────────────────────────────────
   useEffect(() => {
     const app = appRef.current
     if (!app) return
@@ -208,18 +181,15 @@ export function usePixiGame(containerRef) {
     if (!sugGfx) return
     sugGfx.clear()
     if (!suggestion || !nodes.length) return
-
     const { from, to } = suggestion
     if (!nodes[from] || !nodes[to]) return
-
     sugGfx.lineStyle(theme === 'serene' ? 1 : 2, C.contested, theme === 'serene' ? 0.5 : 0.7)
     drawDashed(sugGfx, nodes[from].x, nodes[from].y, nodes[to].x, nodes[to].y, 8, 5)
-
     sugGfx.lineStyle(theme === 'serene' ? 1 : 2, C.contested, theme === 'serene' ? 0.6 : 0.9)
     sugGfx.drawCircle(nodes[to].x, nodes[to].y, 16)
   }, [suggestion, nodes, theme])
 
-  // ── Pulse ticker ───────────────────────────────────────────────────────────
+  // ── Pulse ticker ──────────────────────────────────────────────────────
   useEffect(() => {
     const app = appRef.current
     if (!app) return
@@ -237,33 +207,63 @@ export function usePixiGame(containerRef) {
     return () => app.ticker.remove(ticker)
   }, [nodes, theme])
 
-  // ── Node click / tap ───────────────────────────────────────────────────────
+  // ── Node click ────────────────────────────────────────────────────────
   const handleNodeClick = useCallback((idx) => {
-    const { nodes, humanEdges, gamePhase } = useGameStore.getState()
-    if (gamePhase !== 'routing') return
+    const state = useGameStore.getState()
+    const { showNotification: notify } = useUiStore.getState()
 
+    // ── PLACING phase: pick the start node ────────────────────────────
+    if (state.gamePhase === 'placing') {
+      setStartNode(idx)
+      // Re-render nodes to show the star
+      return
+    }
+
+    if (state.gamePhase !== 'routing') return
+    const { nodes, humanEdges, startNode: sn } = state
     const prev = selectedRef.current
 
+    // First selection
     if (prev === -1) {
       selectedRef.current = idx
       highlightNode(idx, true)
       return
     }
 
+    // Deselect same node
     if (prev === idx) {
       selectedRef.current = -1
       highlightNode(idx, false)
       return
     }
 
+    // ── Validation ──────────────────────────────────────────────────────
+
+    // 1. Duplicate edge check
     const exists = humanEdges.some(
       e => (e.from === prev && e.to === idx) || (e.from === idx && e.to === prev)
     )
-    if (exists) return
+    if (exists) {
+      notify('Edge already exists between these nodes', 'warn')
+      selectedRef.current = -1; highlightNode(prev, false); return
+    }
 
+    // 2. Degree-2 constraint
+    const offender = exceedsDegree(humanEdges, prev, idx)
+    if (offender !== -1) {
+      notify(`Node ${offender} already has 2 connections`, 'warn')
+      selectedRef.current = -1; highlightNode(prev, false); return
+    }
+
+    // 3. Sub-tour prevention
+    if (wouldCloseSubtour(humanEdges, prev, idx, nodes.length)) {
+      notify('This would close an incomplete sub-tour', 'warn')
+      selectedRef.current = -1; highlightNode(prev, false); return
+    }
+
+    // ── Valid edge ──────────────────────────────────────────────────────
     const d = euclidDist(nodes[prev], nodes[idx])
     addHumanEdge({ from: prev, to: idx, dist: d })
-
     highlightNode(prev, false)
     selectedRef.current = -1
 
@@ -275,19 +275,31 @@ export function usePixiGame(containerRef) {
     const c = nodesGfxRef.current[idx]
     if (!c) return
     const glow = c.getChildByName('glow')
-    const { theme } = useUiStore.getState()
-    if (glow) glow.alpha = on
-      ? (theme === 'serene' ? 0.5 : 1)
-      : (theme === 'serene' ? 0.1 : 0.25)
+    const { theme: th } = useUiStore.getState()
+    if (glow) glow.alpha = on ? (th === 'serene' ? 0.5 : 1) : (th === 'serene' ? 0.1 : 0.25)
   }
 
-  // ── Spawn nodes ────────────────────────────────────────────────────────────
+  // ── Spawn nodes (called from GameCanvas) ──────────────────────────────
   const spawnNodes = useCallback(() => {
     const app = appRef.current
     if (!app) return
-    const { difficulty } = useGameStore.getState()
+    const state = useGameStore.getState()
     const { offsetWidth: w, offsetHeight: h } = app.view
-    const newNodes = generateNodes(difficulty, w, h)
+
+    let newNodes = []
+    if (state.nodeSource === 'standard') {
+      const set = STANDARD_SETS[state.standardSize] || STANDARD_SETS.M
+      newNodes = scaleNodesToCanvas(set.nodes, w, h)
+    } else if (state.nodeSource === 'custom') {
+      const { nodes: parsed } = parseCustomNodes(state.customRaw)
+      if (parsed.length < 3) {
+        useUiStore.getState().showNotification('Need at least 3 valid nodes', 'warn')
+        return
+      }
+      newNodes = scaleNodesToCanvas(parsed, w, h)
+    } else {
+      newNodes = generateNodes(state.difficulty, w, h)
+    }
     setNodes(newNodes)
   }, [])
 

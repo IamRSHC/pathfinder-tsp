@@ -1,31 +1,51 @@
 import { create } from 'zustand'
+import { isTourComplete } from '../utils/tourValidator'
 
 export const useGameStore = create((set, get) => ({
   // Config
-  mode:       'copilot', // 'solo' | 'copilot' | 'vs'
-  difficulty: 25,        // node count
+  mode:         'copilot',  // 'solo' | 'copilot' | 'vs'
+  difficulty:   25,         // node count (used for RANDOM)
+  nodeSource:   'random',   // 'random' | 'standard' | 'custom'
+  standardSize: 'M',        // 'S' | 'M' | 'L'
+  customRaw:    '',         // raw text from custom input
 
   // Game state
-  nodes:       [],
-  humanEdges:  [],   // [{ from, to, dist }]
-  aiEdges:     [],
+  nodes:          [],
+  startNode:      null,      // index of the designated start/home node
+  humanEdges:     [],        // [{ from, to, dist }]
+  aiEdges:        [],
   contestedEdges: [],
-  currentPath: [],   // ordered node indices
-  pathLength:  0,
-  optimalBound: 0,
-  timeElapsed:  0,
-  moveHistory:  [],
-  gamePhase:   'idle', // 'idle'|'placing'|'routing'|'complete'
+  currentPath:    [],
+  pathLength:     0,
+  optimalBound:   0,
+  timeElapsed:    0,
+  moveHistory:    [],
+  gamePhase:      'idle',    // 'idle'|'placing'|'routing'|'complete'
+  // 'placing' = nodes spawned, waiting for player to pick start node
+  // 'routing' = start node set, player is connecting edges
 
   // Actions
-  setMode:       (mode)       => set({ mode }),
-  setDifficulty: (difficulty) => set({ difficulty }),
+  setMode:         (mode)         => set({ mode }),
+  setDifficulty:   (difficulty)   => set({ difficulty }),
+  setNodeSource:   (nodeSource)   => set({ nodeSource }),
+  setStandardSize: (standardSize) => set({ standardSize }),
+  setCustomRaw:    (customRaw)    => set({ customRaw }),
 
   setNodes: (nodes) => {
-    // Compute a rough lower bound (nearest-neighbor estimate * 0.75)
     const bound = computeLowerBound(nodes)
-    set({ nodes, optimalBound: bound, gamePhase: 'routing' })
+    set({
+      nodes,
+      optimalBound:  bound,
+      gamePhase:     'placing',   // wait for start-node selection
+      startNode:     null,
+      humanEdges:    [],
+      aiEdges:       [],
+      pathLength:    0,
+      moveHistory:   [],
+    })
   },
+
+  setStartNode: (idx) => set({ startNode: idx, gamePhase: 'routing' }),
 
   addHumanEdge: (edge) => set(s => {
     const humanEdges  = [...s.humanEdges, edge]
@@ -34,18 +54,26 @@ export const useGameStore = create((set, get) => ({
       { type: 'human', edge, time: s.timeElapsed },
       ...s.moveHistory,
     ].slice(0, 20)
-    return { humanEdges, pathLength, moveHistory }
+
+    // Check for tour completion
+    const complete = isTourComplete(humanEdges, s.nodes.length, s.startNode ?? 0)
+    return {
+      humanEdges,
+      pathLength,
+      moveHistory,
+      gamePhase: complete ? 'complete' : s.gamePhase,
+    }
   }),
 
-  addAiEdge: (edge) => set(s => ({
-    aiEdges: [...s.aiEdges, edge],
-  })),
+  addAiEdge: (edge) => set(s => ({ aiEdges: [...s.aiEdges, edge] })),
 
   undoLastMove: () => set(s => {
     if (!s.humanEdges.length) return s
-    const humanEdges = s.humanEdges.slice(0, -1)
-    const pathLength = humanEdges.reduce((acc, e) => acc + e.dist, 0)
+    const humanEdges  = s.humanEdges.slice(0, -1)
+    const pathLength  = humanEdges.reduce((acc, e) => acc + e.dist, 0)
     const moveHistory = s.moveHistory.slice(1)
+    // If we undo back to 0 edges, we could re-enter placing — but keep routing
+    // so the start node stays set and the player doesn't lose their selection.
     return { humanEdges, pathLength, moveHistory }
   }),
 
@@ -54,7 +82,8 @@ export const useGameStore = create((set, get) => ({
   completeGame: () => set({ gamePhase: 'complete' }),
 
   resetGame: () => set({
-    nodes: [], humanEdges: [], aiEdges: [], contestedEdges: [],
+    nodes: [], startNode: null,
+    humanEdges: [], aiEdges: [], contestedEdges: [],
     currentPath: [], pathLength: 0, timeElapsed: 0,
     moveHistory: [], gamePhase: 'idle',
   }),
@@ -62,9 +91,8 @@ export const useGameStore = create((set, get) => ({
 
 function computeLowerBound(nodes) {
   if (nodes.length < 2) return 0
-  // Minimum spanning tree lower bound approximation
   let total = 0
-  const visited = new Set([0])
+  const visited   = new Set([0])
   const remaining = new Set(nodes.map((_, i) => i).slice(1))
   while (remaining.size > 0) {
     let best = Infinity, bestNode = -1

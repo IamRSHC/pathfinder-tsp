@@ -7,8 +7,7 @@ export default function StatsPanel({ className = '' }) {
   const {
     pathLength, optimalBound, timeElapsed,
     moveHistory, humanEdges, nodes, difficulty,
-    tickTime, undoLastMove, gamePhase, completeGame,
-  } = useGameStore()
+    tickTime, undoLastMove, gamePhase, completeGame,, startNode} = useGameStore()
   const t   = useTheme()
   const gap = computeGapPercent(pathLength, optimalBound)
 
@@ -68,6 +67,23 @@ export default function StatsPanel({ className = '' }) {
         <StatItem label={t.is ? 'time'      : 'TIME'}      value={formatTime(timeElapsed)} color="text-game-text"  />
         <StatItem label={t.is ? 'nodes'     : 'NODES'}     value={difficulty}              color="text-game-text"  />
         <StatItem label={t.is ? 'edges set' : 'EDGES SET'} value={humanEdges.length}       color={t.secondary.text} />
+        {gamePhase === 'routing' && nodes.length > 0 && (() => {
+          const rem = edgesRemaining(humanEdges.length, nodes.length)
+          return (
+            <StatItem
+              label={t.is ? 'edges remaining' : 'EDGES REMAINING'}
+              value={rem}
+              color={rem === 0 ? t.primary.text : (rem === 1 ? t.secondary.text : t.primary.text)}
+            />
+          )
+        })()}
+        {(gamePhase === 'routing' || gamePhase === 'complete') && startNode !== null && (
+          <StatItem
+            label={t.is ? 'start / home node' : 'START / HOME NODE'}
+            value={`★ ${startNode}`}
+            color={t.primary.text}
+          />
+        )}
       </div>
 
       {/* Move History */}

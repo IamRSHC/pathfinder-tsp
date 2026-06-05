@@ -9,12 +9,13 @@ import { useGameStore }   from '../stores/gameStore'
 import { useUiStore }     from '../stores/uiStore'
 import { useAiStore }     from '../stores/aiStore'
 import { useTheme }       from '../hooks/useTheme'
+import { edgesRemaining } from '../utils/tourValidator'
 
 export default function ArenaScreen() {
   const navigate  = useNavigate()
   const isMounted = useRef(true)
 
-  const { gamePhase, resetGame, difficulty, nodes } = useGameStore()
+  const { gamePhase, resetGame, difficulty, nodes, startNode, humanEdges } = useGameStore()
   const { mobileDrawerOpen, openDrawer, notification, viewMode } = useUiStore()
   const { reset: resetAi } = useAiStore()
   const t = useTheme()
@@ -118,6 +119,37 @@ export default function ArenaScreen() {
           {notification.msg}
         </div>
       )}
+
+      {/* ── Phase banner: PLACING — pick start node ── */}
+      {gamePhase === 'placing' && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
+          style={{ minWidth: '260px' }}>
+          <div className={`px-4 py-2 rounded border font-mono text-xs text-center font-bold shadow-lg
+            ${t.primary.bg} ${t.primary.border} ${t.primary.text}`}>
+            {t.is ? '★ Tap a node to set it as your Start node' : '★ CLICK A NODE TO SET YOUR START NODE'}
+          </div>
+        </div>
+      )}
+
+      {/* ── Routing hint: edges remaining + close-tour reminder ── */}
+      {gamePhase === 'routing' && nodes.length > 0 && (() => {
+        const rem = edgesRemaining(humanEdges.length, nodes.length)
+        if (rem > 1) return null
+        return (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
+            style={{ minWidth: '280px' }}>
+            <div className={`px-4 py-2 rounded border font-mono text-xs text-center font-bold shadow-lg
+              ${t.secondary.bg} ${t.secondary.border} ${t.secondary.text}`}>
+              {rem === 1
+                ? (t.is
+                  ? `★ Connect back to Node ${startNode ?? 0} to complete the tour!`
+                  : `★ CONNECT BACK TO NODE ${startNode ?? 0} TO CLOSE THE TOUR!`)
+                : null}
+              {rem === 0 && (t.is ? 'Tour complete!' : 'TOUR COMPLETE!')}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Complete overlay */}
       {gamePhase === 'complete' && (

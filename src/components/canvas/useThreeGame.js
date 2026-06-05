@@ -3,7 +3,8 @@ import * as THREE from 'three'
 import { useGameStore } from '../../stores/gameStore'
 import { useAiStore }   from '../../stores/aiStore'
 import { useUiStore }   from '../../stores/uiStore'
-import { euclidDist, generateNodes } from '../../utils/tspUtils'
+import { euclidDist, generateNodes, scaleNodesToCanvas, STANDARD_SETS, parseCustomNodes } from '../../utils/tspUtils'
+import { exceedsDegree, wouldCloseSubtour } from '../../utils/tourValidator'
 
 // ── Theme palettes (mirrors THEME_COLORS in usePixiGame) ──────────────────
 const THEME3D = {
@@ -24,6 +25,8 @@ const THEME3D = {
     ambient:     { color: 0x112233, intensity: 1.2 },
     dirLight:    { color: 0x00e5ff, intensity: 0.6 },
     ground:      { color: 0x0a1020, opacity: 0.6 },
+    startNode:   { color: 0x332200, emissive: 0xffd700, emissiveIntensity: 2.0 },
+    startRing:   0xffd700,
     nodeRadius:  7,
     nodeSegs:    20,
   },
@@ -44,6 +47,10 @@ const THEME3D = {
     ambient:     { color: 0xffffff, intensity: 2.0 },
     dirLight:    { color: 0xfff8f0, intensity: 0.8 },
     ground:      { color: 0xf0ede8, opacity: 0.5 },
+    startNode:   { color: 0x332200, emissive: 0xffd700, emissiveIntensity: 2.0 },
+    startRing:   0xffd700,
+    startNode:   { color: 0x3d1a00, emissive: 0xE07B39, emissiveIntensity: 1.5 },
+    startRing:   0xE07B39,
     nodeRadius:  7,
     nodeSegs:    20,
   },
@@ -77,7 +84,7 @@ export function useThreeGame(containerRef) {
   const isMountedRef   = useRef(true)
   const pulseTickRef   = useRef(0)
 
-  const { nodes, humanEdges, aiEdges, difficulty, gamePhase, setNodes, addHumanEdge } = useGameStore()
+  const { nodes, humanEdges, aiEdges, difficulty, gamePhase, startNode, setNodes, addHumanEdge, setStartNode } = useGameStore()
   const { suggestion, requestSuggestion } = useAiStore()
   const { theme } = useUiStore()
 
@@ -234,32 +241,42 @@ export function useThreeGame(containerRef) {
     // Map 2D canvas coords → 3D world coords centered at origin
     const cx = W / 2, cy = H / 2
 
+    const { startNode: sn } = useGameStore.getState()
     nodes.forEach((node, idx) => {
-      const geo = new THREE.SphereGeometry(C.nodeRadius, C.nodeSegs, C.nodeSegs)
+      const isStart = sn === idx
+      const matSpec = isStart ? C.startNode : C.nodeMat
+      const radius  = isStart ? C.nodeRadius * 1.35 : C.nodeRadius
+      const geo = new THREE.SphereGeometry(radius, C.nodeSegs, C.nodeSegs)
       const mat = new THREE.MeshStandardMaterial({
-        color:             C.nodeMat.color,
-        emissive:          new THREE.Color(C.nodeMat.emissive),
-        emissiveIntensity: C.nodeMat.emissiveIntensity,
+        color:             matSpec.color,
+        emissive:          new THREE.Color(matSpec.emissive),
+        emissiveIntensity: matSpec.emissiveIntensity,
         roughness:         0.3,
         metalness:         theme === 'cyber' ? 0.6 : 0.1,
       })
       const mesh = new THREE.Mesh(geo, mat)
-      // Map node x/y to world, z=0 (floating above ground)
       mesh.position.set(node.x - cx, -(node.y - cy), 0)
-      mesh.userData = {
-        index:    idx,
-        baseZ:    0,
-        hovered:  false,
-        selected: false,
-      }
+      mesh.userData = { index: idx, baseZ: 0, hovered: false, selected: false, isStart }
       mesh.name = `node-${idx}`
       scene.add(mesh)
       nodeMeshesRef.current.push(mesh)
+
+      // Add orbit ring for start node
+      if (isStart) {
+        const ringGeo = new THREE.RingGeometry(radius + 5, radius + 9, 32)
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: C.startRing, side: THREE.DoubleSide, transparent: true, opacity: 0.75,
+        })
+        const ring = new THREE.Mesh(ringGeo, ringMat)
+        ring.position.set(node.x - cx, -(node.y - cy), 0.5)
+        ring.name = `startRing-${idx}`
+        scene.add(ring)
+      }
     })
 
     // Rebuild edges too (nodes changed = fresh game)
     rebuildEdges()
-  }, [nodes, theme]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [nodes, theme, startNode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Rebuild edge lines when edges change ────────────────────────────────
   useEffect(() => { rebuildEdges() }, [humanEdges, aiEdges, theme]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -441,17 +458,18 @@ export function useThreeGame(containerRef) {
   const selectedIdxRef = useRef(-1)
 
   const handleNodeClick = useCallback((idx) => {
-    const { nodes, humanEdges, gamePhase } = useGameStore.getState()
-    if (gamePhase !== 'routing') return
+    const state = useGameStore.getState()
+    const { showNotification: notify } = useUiStore.getState()
 
-    const prev = selectedIdxRef.current
-
-    // Deselect if same node
-    if (prev === idx) {
-      selectedIdxRef.current = -1
-      applyNodeState(idx, 'normal')
+    // ── PLACING phase: pick start node ───────────────────────────────
+    if (state.gamePhase === 'placing') {
+      setStartNode(idx)
       return
     }
+
+    if (state.gamePhase !== 'routing') return
+    const { nodes, humanEdges } = state
+    const prev = selectedIdxRef.current
 
     // First selection
     if (prev === -1) {
@@ -460,17 +478,36 @@ export function useThreeGame(containerRef) {
       return
     }
 
-    // Check duplicate edge
+    // Deselect same node
+    if (prev === idx) {
+      selectedIdxRef.current = -1
+      applyNodeState(idx, 'normal')
+      return
+    }
+
+    // 1. Duplicate edge check
     const exists = humanEdges.some(
       e => (e.from === prev && e.to === idx) || (e.from === idx && e.to === prev)
     )
     if (exists) {
-      selectedIdxRef.current = -1
-      applyNodeState(prev, 'normal')
-      return
+      notify('Edge already exists between these nodes', 'warn')
+      selectedIdxRef.current = -1; applyNodeState(prev, 'normal'); return
     }
 
-    // Create edge
+    // 2. Degree-2 constraint
+    const offender = exceedsDegree(humanEdges, prev, idx)
+    if (offender !== -1) {
+      notify(`Node ${offender} already has 2 connections`, 'warn')
+      selectedIdxRef.current = -1; applyNodeState(prev, 'normal'); return
+    }
+
+    // 3. Sub-tour prevention
+    if (wouldCloseSubtour(humanEdges, prev, idx, nodes.length)) {
+      notify('This would close an incomplete sub-tour', 'warn')
+      selectedIdxRef.current = -1; applyNodeState(prev, 'normal'); return
+    }
+
+    // ── Valid edge ──────────────────────────────────────────────────
     const d = euclidDist(nodes[prev], nodes[idx])
     addHumanEdge({ from: prev, to: idx, dist: d })
     applyNodeState(prev, 'normal')
@@ -568,10 +605,24 @@ export function useThreeGame(containerRef) {
   const spawnNodes = useCallback(() => {
     const container = containerRef.current
     if (!container) return
-    const { difficulty } = useGameStore.getState()
+    const state = useGameStore.getState()
     const W = container.offsetWidth  || container.clientWidth  || 800
     const H = container.offsetHeight || container.clientHeight || 600
-    const newNodes = generateNodes(difficulty, W, H)
+
+    let newNodes = []
+    if (state.nodeSource === 'standard') {
+      const set = STANDARD_SETS[state.standardSize] || STANDARD_SETS.M
+      newNodes = scaleNodesToCanvas(set.nodes, W, H)
+    } else if (state.nodeSource === 'custom') {
+      const { nodes: parsed } = parseCustomNodes(state.customRaw)
+      if (parsed.length < 3) {
+        useUiStore.getState().showNotification('Need at least 3 valid nodes', 'warn')
+        return
+      }
+      newNodes = scaleNodesToCanvas(parsed, W, H)
+    } else {
+      newNodes = generateNodes(state.difficulty, W, H)
+    }
     setNodes(newNodes)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
