@@ -7,7 +7,7 @@ export default function StatsPanel({ className = '' }) {
   const {
     pathLength, optimalBound, timeElapsed,
     moveHistory, humanEdges, nodes, difficulty,
-    tickTime, undoLastMove, gamePhase, completeGame,, startNode} = useGameStore()
+    tickTime, undoLastMove, gamePhase, completeGame, startNode} = useGameStore()
   const t   = useTheme()
   const gap = computeGapPercent(pathLength, optimalBound)
 
