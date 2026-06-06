@@ -37,16 +37,7 @@ function GameCanvas2D({ className = '' }) {
     >
       <div ref={containerRef} className="w-full h-full" />
 
-      {nodes.length > 0 && gamePhase === 'routing' && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
-          <p className="font-mono text-xs text-center px-3 py-1.5 rounded border
-            text-game-muted bg-game-surface/80 border-game-border">
-            {t.is
-              ? 'Tap a node to select · tap another to connect'
-              : 'Click node to select · click another to connect · Cyan = your path · Amber = AI'}
-          </p>
-        </div>
-      )}
+
 
       {modeLabel && (
         <div className={`absolute top-3 left-3 px-2 py-1 rounded border font-mono text-xs ${modeLabelColor}`}>

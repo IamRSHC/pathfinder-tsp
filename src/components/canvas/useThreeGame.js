@@ -59,9 +59,9 @@ function createOrbitState() {
   return {
     isPointerDown: false,
     lastX: 0, lastY: 0,
-    theta: 0,          // horizontal rotation (radians)
-    phi: Math.PI / 4,  // vertical tilt (radians, 0=top, PI/2=side)
-    radius: 600,
+    theta: 0,              // horizontal rotation (radians)
+    phi: 1.15,             // ~66deg tilt — slight overhead angle, grid and nodes visible
+    radius: 700,           // slightly pulled back so full node spread fits in view
     target: new THREE.Vector3(0, 0, 0),
     // touch
     lastPinchDist: 0,
@@ -292,22 +292,25 @@ export function useThreeGame(containerRef) {
     const { offsetWidth: W, offsetHeight: H } = containerRef.current
     const cx = W / 2, cy = H / 2
 
-    const pts = [
-      new THREE.Vector3(nodes[from].x - cx, -(nodes[from].y - cy), 2),
-      new THREE.Vector3(nodes[to].x   - cx, -(nodes[to].y   - cy), 2),
-    ]
-    const geo = new THREE.BufferGeometry().setFromPoints(pts)
-    const mat = new THREE.LineDashedMaterial({
-      color:     C.sugEdge,
-      opacity:   C.sugAlpha,
-      transparent: true,
-      dashSize:  12,
-      gapSize:   6,
-      linewidth: 1,
-    })
-    const line = new THREE.LineSegments(geo, mat)
-    line.computeLineDistances()
-    group.add(line)
+    // Use a tube for the suggestion edge too (LineBasicMaterial ignores linewidth in WebGL)
+    const ax = nodes[from].x - cx, ay = -(nodes[from].y - cy)
+    const bx = nodes[to].x   - cx, by = -(nodes[to].y   - cy)
+    const start = new THREE.Vector3(ax, ay, 2)
+    const end   = new THREE.Vector3(bx, by, 2)
+    const dir    = new THREE.Vector3().subVectors(end, start)
+    const length = dir.length()
+    if (length > 1) {
+      const geo  = new THREE.CylinderGeometry(1.0, 1.0, length, 6, 1)
+      const mat  = new THREE.MeshBasicMaterial({ color: C.sugEdge, opacity: C.sugAlpha * 0.85, transparent: true })
+      const mesh = new THREE.Mesh(geo, mat)
+      const mid  = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5)
+      mesh.position.copy(mid)
+      const axis = dir.clone().normalize()
+      mesh.setRotationFromQuaternion(
+        new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0), axis)
+      )
+      group.add(mesh)
+    }
 
     // Ring around target node
     const ringGeo = new THREE.RingGeometry(14, 17, 32)
@@ -336,7 +339,7 @@ export function useThreeGame(containerRef) {
 
     function applyZoom(delta) {
       const o = orbitRef.current
-      o.radius = Math.max(150, Math.min(1400, o.radius + delta))
+      o.radius = Math.max(200, Math.min(1200, o.radius + delta))
       positionCamera(cameraRef.current, o)
     }
 
@@ -561,42 +564,46 @@ export function useThreeGame(containerRef) {
     const TC = THEME3D[theme] || THEME3D.cyber
     if (!nodes.length) return
 
-    const { offsetWidth: W, offsetHeight: H } = containerRef.current
-    const cx = W / 2, cy = H / 2
+    const cont = containerRef.current
+    if (!cont) return
+    const cx = (cont.offsetWidth  || 800) / 2
+    const cy = (cont.offsetHeight || 600) / 2
 
-    // Human edges
-    if (humanEdges.length) {
-      const pts = []
-      humanEdges.forEach(({ from, to }) => {
-        pts.push(
-          new THREE.Vector3(nodes[from].x - cx, -(nodes[from].y - cy), 1),
-          new THREE.Vector3(nodes[to].x   - cx, -(nodes[to].y   - cy), 1),
-        )
-      })
-      const geo = new THREE.BufferGeometry().setFromPoints(pts)
-      const mat = new THREE.LineBasicMaterial({
-        color: TC.humanEdge, opacity: TC.humanAlpha, transparent: true,
-        linewidth: 2,
-      })
-      group.add(new THREE.LineSegments(geo, mat))
+    // ── WebGL ignores LineBasicMaterial.linewidth > 1.
+    // Use CylinderGeometry tubes instead — always thick, visible at any angle.
+    const addEdgeTube = (fromNode, toNode, color, opacity, radius = 1.8, zOff = 1) => {
+      const ax = fromNode.x - cx,  ay = -(fromNode.y - cy)
+      const bx = toNode.x   - cx,  by = -(toNode.y   - cy)
+      const start = new THREE.Vector3(ax, ay, zOff)
+      const end   = new THREE.Vector3(bx, by, zOff)
+      const dir    = new THREE.Vector3().subVectors(end, start)
+      const length = dir.length()
+      if (length < 1) return
+
+      const geo = new THREE.CylinderGeometry(radius, radius, length, 6, 1)
+      const mat = new THREE.MeshBasicMaterial({ color, opacity, transparent: opacity < 1 })
+      const mesh = new THREE.Mesh(geo, mat)
+
+      // Position at midpoint, orient along direction
+      const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5)
+      mesh.position.copy(mid)
+
+      // Cylinder default axis is Y; rotate to align with edge direction
+      const axis = dir.clone().normalize()
+      const up   = new THREE.Vector3(0, 1, 0)
+      const quat = new THREE.Quaternion().setFromUnitVectors(up, axis)
+      mesh.setRotationFromQuaternion(quat)
+
+      group.add(mesh)
     }
 
-    // AI edges
-    if (aiEdges.length) {
-      const pts = []
-      aiEdges.forEach(({ from, to }) => {
-        pts.push(
-          new THREE.Vector3(nodes[from].x - cx, -(nodes[from].y - cy), 1.5),
-          new THREE.Vector3(nodes[to].x   - cx, -(nodes[to].y   - cy), 1.5),
-        )
-      })
-      const geo = new THREE.BufferGeometry().setFromPoints(pts)
-      const mat = new THREE.LineBasicMaterial({
-        color: TC.aiEdge, opacity: TC.aiAlpha, transparent: true,
-        linewidth: 2,
-      })
-      group.add(new THREE.LineSegments(geo, mat))
-    }
+    humanEdges.forEach(({ from, to }) => {
+      addEdgeTube(nodes[from], nodes[to], TC.humanEdge, TC.humanAlpha, 1.8, 0)
+    })
+
+    aiEdges.forEach(({ from, to }) => {
+      addEdgeTube(nodes[from], nodes[to], TC.aiEdge, TC.aiAlpha, 1.4, 0)
+    })
   }
 
   // ── Spawn nodes ──────────────────────────────────────────────────────────
@@ -638,13 +645,16 @@ function positionCamera(camera, orbit) {
   camera.updateProjectionMatrix()
 }
 
-// ── Ground plane + grid lines ───────────────────────────────────────────────
+// ── Background plane + grid ─────────────────────────────────────────────────
+// Grid is in the XY plane (z = -5) to match where nodes are placed (z ≈ 0).
+// Uses LineSegments for the grid (acceptable — 1px lines work fine as bg decoration).
+// The grid does NOT need linewidth > 1; it's purely decorative.
 function buildGround(scene, C) {
   const group = new THREE.Group()
   group.name = 'ground'
 
-  // Plane
-  const geo = new THREE.PlaneGeometry(2000, 2000)
+  // Background plane — sits behind all nodes (z = -8)
+  const geo = new THREE.PlaneGeometry(2000, 1600)
   const mat = new THREE.MeshBasicMaterial({
     color:       C.ground.color,
     opacity:     C.ground.opacity,
@@ -652,21 +662,24 @@ function buildGround(scene, C) {
     side:        THREE.DoubleSide,
   })
   const plane = new THREE.Mesh(geo, mat)
-  plane.rotation.x = -Math.PI / 2
-  plane.position.y = -60
+  plane.position.set(0, 0, -8)   // same facing as camera, just behind nodes
   group.add(plane)
 
-  // Grid lines
+  // Grid lines — XY plane at z=-5, 1px lines are fine for bg decoration
   const gridMat = new THREE.LineBasicMaterial({
     color:       C.gridColor,
-    opacity:     0.25,
+    opacity:     0.18,
     transparent: true,
   })
-  const step = 80, half = 800
+  const step = 80, halfX = 900, halfY = 700
   const pts = []
-  for (let i = -half; i <= half; i += step) {
-    pts.push(new THREE.Vector3(i, -60, -half), new THREE.Vector3(i, -60, half))
-    pts.push(new THREE.Vector3(-half, -60, i), new THREE.Vector3(half, -60, i))
+  // Vertical lines (constant x, varying y)
+  for (let x = -halfX; x <= halfX; x += step) {
+    pts.push(new THREE.Vector3(x, -halfY, -5), new THREE.Vector3(x, halfY, -5))
+  }
+  // Horizontal lines (constant y, varying x)
+  for (let y = -halfY; y <= halfY; y += step) {
+    pts.push(new THREE.Vector3(-halfX, y, -5), new THREE.Vector3(halfX, y, -5))
   }
   const gridGeo = new THREE.BufferGeometry().setFromPoints(pts)
   group.add(new THREE.LineSegments(gridGeo, gridMat))

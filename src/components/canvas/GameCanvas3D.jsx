@@ -35,18 +35,7 @@ export default function GameCanvas3D({ className = '' }) {
         </span>
       </div>
 
-      {/* Interaction hint — routing phase only */}
-      {nodes.length > 0 && gamePhase === 'routing' && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
-          <p className="font-mono text-xs text-center px-3 py-1.5 rounded border
-            text-game-muted bg-game-surface/90 border-game-border"
-            style={{ whiteSpace: 'nowrap' }}>
-            {t.is
-              ? 'Tap nodes to connect · drag to orbit · pinch to zoom'
-              : 'Click nodes to connect · drag to orbit · scroll/pinch to zoom'}
-          </p>
-        </div>
-      )}
+
     </div>
   )
 }

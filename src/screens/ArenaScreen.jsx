@@ -28,7 +28,7 @@ export default function ArenaScreen() {
     nodeSource, standardSize, customRaw, difficulty,
     setNodes,
   } = useGameStore()
-  const { mobileDrawerOpen, openDrawer, notification, showNotification } = useUiStore()
+  const { mobileDrawerOpen, openDrawer, notification, viewMode } = useUiStore()
   const { reset: resetAi } = useAiStore()
   const t = useTheme()
 
@@ -60,12 +60,8 @@ export default function ArenaScreen() {
     }
 
     setNodes(newNodes)
-    // Message guides player to the NEXT step (pick start node), not 'start routing'
-    showNotification(
-      `${newNodes.length} nodes ready — ${t.is ? 'tap' : 'click'} one to set your start node`,
-      'success'
-    )
-  }, [t.is]) // eslint-disable-line react-hooks/exhaustive-deps
+    // No notification here — the permanent placing banner guides the player
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Mount: reset state, spawn nodes once canvas has rendered ────────────
   useEffect(() => {
@@ -160,6 +156,24 @@ export default function ArenaScreen() {
             </div>
           )}
 
+          {/* ── Desktop-only hint pill: bottom-left corner, never covers nodes ── */}
+          {gamePhase === 'routing' && nodes.length > 0 && (
+            <div
+              className="absolute bottom-3 left-3 z-10 pointer-events-none hidden lg:block"
+            >
+              <p className="font-mono text-xs px-2.5 py-1 rounded border
+                text-game-muted bg-game-surface/70 border-game-border backdrop-blur-sm"
+                style={{ fontSize: '0.6rem', letterSpacing: '0.04em' }}
+              >
+                {viewMode === '3d'
+                  ? (t.is ? 'Drag to orbit · scroll to zoom · tap node to connect'
+                           : 'DRAG TO ORBIT · SCROLL TO ZOOM · CLICK NODE TO CONNECT')
+                  : (t.is ? 'Tap node to select · tap another to connect'
+                           : 'CLICK NODE TO SELECT · CLICK ANOTHER TO CONNECT')}
+              </p>
+            </div>
+          )}
+
           {/* Mobile bottom bar */}
           <div className="absolute bottom-0 left-0 right-0 lg:hidden
             flex items-center justify-between
@@ -171,8 +185,13 @@ export default function ArenaScreen() {
             >
               📊 {t.is ? 'Stats' : 'STATS'}
             </button>
-            <div className="font-mono text-xs text-game-muted">
-              {nodes.length || difficulty} {t.is ? 'nodes' : 'NODES'}
+            <div className="font-mono text-game-muted text-center flex-1 px-2"
+              style={{ fontSize: '0.58rem', lineHeight: 1.3 }}>
+              {gamePhase === 'routing'
+                ? (viewMode === '3d'
+                  ? (t.is ? 'drag·orbit  pinch·zoom' : 'DRAG·ORBIT  PINCH·ZOOM')
+                  : (t.is ? 'tap to select & connect' : 'TAP TO SELECT & CONNECT'))
+                : `${nodes.length || difficulty} ${t.is ? 'nodes' : 'NODES'}`}
             </div>
             <button
               onClick={() => openDrawer('ai')}
