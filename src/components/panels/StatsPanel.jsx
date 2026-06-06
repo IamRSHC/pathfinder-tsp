@@ -1,32 +1,27 @@
+import { useEffect }  from 'react'
 import { useGameStore } from '../../stores/gameStore'
 import { formatDist, computeGapPercent, formatTime } from '../../utils/tspUtils'
-import { useEffect } from 'react'
+import { edgesRemaining } from '../../utils/tourValidator'
 import { useTheme }  from '../../hooks/useTheme'
 
 export default function StatsPanel({ className = '' }) {
   const {
     pathLength, optimalBound, timeElapsed,
     moveHistory, humanEdges, nodes, difficulty,
-    tickTime, undoLastMove, gamePhase, completeGame, startNode} = useGameStore()
+    tickTime, undoLastMove, gamePhase, startNode,
+  } = useGameStore()
   const t   = useTheme()
   const gap = computeGapPercent(pathLength, optimalBound)
 
-  // Timer
+  // Timer — only runs during routing phase
   useEffect(() => {
     if (gamePhase !== 'routing') return
     const id = setInterval(tickTime, 1000)
     return () => clearInterval(id)
   }, [gamePhase])
 
-  // Auto-complete when all nodes connected
-  useEffect(() => {
-    if (!nodes.length) return
-    const connectedNodes = new Set()
-    humanEdges.forEach(e => { connectedNodes.add(e.from); connectedNodes.add(e.to) })
-    if (connectedNodes.size === nodes.length && humanEdges.length >= nodes.length) {
-      completeGame()
-    }
-  }, [humanEdges, nodes])
+  // ── NO auto-complete here. gameStore.addHumanEdge calls isTourComplete
+  //    as the single source of truth. Removed the old conflicting useEffect.
 
   const gapColor =
     gap <= 10  ? 'text-game-green' :
@@ -65,19 +60,20 @@ export default function StatsPanel({ className = '' }) {
           </div>
         </div>
         <StatItem label={t.is ? 'time'      : 'TIME'}      value={formatTime(timeElapsed)} color="text-game-text"  />
-        <StatItem label={t.is ? 'nodes'     : 'NODES'}     value={difficulty}              color="text-game-text"  />
+        <StatItem label={t.is ? 'nodes'     : 'NODES'}     value={nodes.length || difficulty} color="text-game-text"  />
         <StatItem label={t.is ? 'edges set' : 'EDGES SET'} value={humanEdges.length}       color={t.secondary.text} />
-        {gamePhase === 'routing' && nodes.length > 0 && (() => {
-          const rem = edgesRemaining(humanEdges.length, nodes.length)
-          return (
-            <StatItem
-              label={t.is ? 'edges remaining' : 'EDGES REMAINING'}
-              value={rem}
-              color={rem === 0 ? t.primary.text : (rem === 1 ? t.secondary.text : t.primary.text)}
-            />
-          )
-        })()}
-        {(gamePhase === 'routing' || gamePhase === 'complete') && startNode !== null && (
+
+        {/* Edges remaining — routing phase only */}
+        {gamePhase === 'routing' && nodes.length > 0 && (
+          <StatItem
+            label={t.is ? 'edges remaining' : 'EDGES REMAINING'}
+            value={edgesRemaining(humanEdges.length, nodes.length)}
+            color={edgesRemaining(humanEdges.length, nodes.length) <= 1 ? t.secondary.text : t.primary.text}
+          />
+        )}
+
+        {/* Start node — shown once set */}
+        {startNode !== null && gamePhase !== 'idle' && gamePhase !== 'placing' && (
           <StatItem
             label={t.is ? 'start / home node' : 'START / HOME NODE'}
             value={`★ ${startNode}`}

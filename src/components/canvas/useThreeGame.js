@@ -47,8 +47,6 @@ const THEME3D = {
     ambient:     { color: 0xffffff, intensity: 2.0 },
     dirLight:    { color: 0xfff8f0, intensity: 0.8 },
     ground:      { color: 0xf0ede8, opacity: 0.5 },
-    startNode:   { color: 0x332200, emissive: 0xffd700, emissiveIntensity: 2.0 },
-    startRing:   0xffd700,
     startNode:   { color: 0x3d1a00, emissive: 0xE07B39, emissiveIntensity: 1.5 },
     startRing:   0xE07B39,
     nodeRadius:  7,

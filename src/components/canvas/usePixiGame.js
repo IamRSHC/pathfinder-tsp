@@ -284,7 +284,10 @@ export function usePixiGame(containerRef) {
     const app = appRef.current
     if (!app) return
     const state = useGameStore.getState()
-    const { offsetWidth: w, offsetHeight: h } = app.view
+    // Use containerRef dimensions, not app.view — app.view can be 0x0 when hidden
+    const container = containerRef.current
+    const w = container?.offsetWidth  || container?.clientWidth  || 800
+    const h = container?.offsetHeight || container?.clientHeight || 600
 
     let newNodes = []
     if (state.nodeSource === 'standard') {
