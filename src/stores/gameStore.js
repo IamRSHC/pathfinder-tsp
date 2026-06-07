@@ -8,6 +8,8 @@ export const useGameStore = create((set, get) => ({
   nodeSource:   'random',   // 'random' | 'standard' | 'custom'
   standardSize: 'M',        // 'S' | 'M' | 'L'
   customRaw:    '',         // raw text from custom input
+  customNodeNames:  [],     // ['N0', 'N1', ...]
+  customRawCoords:  [],     // [{ x, y }, ...] — original pre-scale coords
 
   // Game state
   nodes:          [],
@@ -30,6 +32,8 @@ export const useGameStore = create((set, get) => ({
   setNodeSource:   (nodeSource)   => set({ nodeSource }),
   setStandardSize: (standardSize) => set({ standardSize }),
   setCustomRaw:    (customRaw)    => set({ customRaw }),
+  setCustomNodeNames: (customNodeNames, customRawCoords) =>
+    set({ customNodeNames, customRawCoords }),
 
   setNodes: (nodes) => {
     const bound = computeLowerBound(nodes)
@@ -82,7 +86,7 @@ export const useGameStore = create((set, get) => ({
   completeGame: () => set({ gamePhase: 'complete' }),
 
   resetGame: () => set({
-    nodes: [], startNode: null,
+    nodes: [], startNode: null, customNodeNames: [], customRawCoords: [],
     humanEdges: [], aiEdges: [], contestedEdges: [],
     currentPath: [], pathLength: 0, timeElapsed: 0,
     moveHistory: [], gamePhase: 'idle',

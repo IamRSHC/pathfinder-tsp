@@ -82,6 +82,8 @@ export function nearestNeighborTour(nodes) {
 export function parseCustomNodes(raw) {
   const lines  = raw.split('\n').map(l => l.trim()).filter(Boolean)
   const nodes  = []
+  const names  = []   // human-readable: "N0 (14, 57)"
+  const rawCoords = [] // original raw values before scaling
   const errors = []
 
   lines.forEach((line, i) => {
@@ -97,10 +99,13 @@ export function parseCustomNodes(raw) {
       errors.push(`Line ${i + 1}: "${line}" — not valid numbers`)
       return
     }
-    nodes.push({ x, y, id: nodes.length })
+    const idx = nodes.length
+    nodes.push({ x, y, id: idx })
+    names.push(`N${idx}`)
+    rawCoords.push({ x, y })
   })
 
-  return { nodes, errors }
+  return { nodes, names, rawCoords, errors }
 }
 
 /**

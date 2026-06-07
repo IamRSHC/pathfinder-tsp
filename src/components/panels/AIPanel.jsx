@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useAiStore }   from '../../stores/aiStore'
 import { useGameStore } from '../../stores/gameStore'
 import { useUiStore }   from '../../stores/uiStore'
@@ -9,7 +10,7 @@ export default function AIPanel({ className = '' }) {
     isThinking, reasoningLog,
     acceptSuggestion, rejectSuggestion, handoffSegment,
   } = useAiStore()
-  const { nodes, humanEdges, mode } = useGameStore()
+  const { nodes, humanEdges, mode, nodeSource, customNodeNames, customRawCoords } = useGameStore()
   const { showNotification } = useUiStore()
   const t = useTheme()
 
@@ -149,6 +150,17 @@ export default function AIPanel({ className = '' }) {
       {/* Reasoning Log */}
       <div className="flex-1 overflow-hidden flex flex-col px-4 py-3">
         <span className="stat-label block mb-2">{t.is ? 'reasoning feed' : 'REASONING FEED'}</span>
+
+        {/* ── Node Map Popup — custom source only ── */}
+        {nodeSource === 'custom' && customNodeNames.length > 0 && (
+          <NodeMapPopup
+            names={customNodeNames}
+            coords={customRawCoords}
+            nodes={nodes}
+            t={t}
+          />
+        )}
+
         <div className="flex-1 overflow-y-auto space-y-1.5">
           {reasoningLog.map((entry, i) => (
             <div
@@ -165,6 +177,154 @@ export default function AIPanel({ className = '' }) {
         </div>
       </div>
 
+    </div>
+  )
+}
+
+// ── NodeMapPopup ───────────────────────────────────────────────────────────
+// Shows the auto-generated name → coordinate mapping for custom node sets.
+// Dismissable via × button; re-opens automatically when a new game spawns.
+function NodeMapPopup({ names, coords, nodes, t }) {
+  const [dismissed, setDismissed] = useState(false)
+
+  // Re-show whenever the node set changes (new game started)
+  useEffect(() => {
+    setDismissed(false)
+  }, [nodes.length])
+
+  if (dismissed) {
+    return (
+      <button
+        onClick={() => setDismissed(false)}
+        style={{
+          display:       'flex',
+          alignItems:    'center',
+          gap:           '0.35rem',
+          marginBottom:  '0.5rem',
+          padding:       '0.25rem 0.6rem',
+          borderRadius:  '0.375rem',
+          border:        '1px solid var(--color-border)',
+          background:    'transparent',
+          color:         'var(--color-muted)',
+          fontFamily:    'var(--font-mono)',
+          fontSize:      '0.58rem',
+          cursor:        'pointer',
+          letterSpacing: t.is ? '0.02em' : '0.06em',
+        }}
+      >
+        📋 {t.is ? `Show node map (${names.length} nodes)` : `SHOW NODE MAP (${names.length} NODES)`}
+      </button>
+    )
+  }
+
+  return (
+    <div
+      style={{
+        marginBottom:  '0.75rem',
+        borderRadius:  '0.5rem',
+        border:        '1px solid var(--color-border)',
+        background:    t.is
+          ? 'rgba(45,106,79,0.06)'
+          : 'rgba(0,229,255,0.04)',
+        overflow:      'hidden',
+        flexShrink:    0,
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display:        'flex',
+          alignItems:     'center',
+          justifyContent: 'space-between',
+          padding:        '0.4rem 0.65rem',
+          borderBottom:   '1px solid var(--color-border)',
+          background:     t.is
+            ? 'rgba(45,106,79,0.10)'
+            : 'rgba(0,229,255,0.06)',
+        }}
+      >
+        <span
+          style={{
+            fontFamily:    'var(--font-mono)',
+            fontSize:      '0.6rem',
+            fontWeight:    700,
+            color:         'var(--color-primary)',
+            letterSpacing: t.is ? '0.03em' : '0.1em',
+          }}
+        >
+          {t.is ? `📋 Node map — ${names.length} custom nodes` : `📋 NODE MAP — ${names.length} CUSTOM NODES`}
+        </span>
+        <button
+          onClick={() => setDismissed(true)}
+          style={{
+            background:    'none',
+            border:        'none',
+            color:         'var(--color-muted)',
+            cursor:        'pointer',
+            fontSize:      '0.85rem',
+            lineHeight:    1,
+            padding:       '0 0.1rem',
+            fontWeight:    700,
+          }}
+          title="Dismiss"
+        >
+          ×
+        </button>
+      </div>
+
+      {/* Scrollable table */}
+      <div
+        style={{
+          maxHeight:        '140px',
+          overflowY:        'auto',
+          padding:          '0.4rem 0.65rem',
+          display:          'flex',
+          flexDirection:    'column',
+          gap:              '0.2rem',
+        }}
+      >
+        {names.map((name, i) => (
+          <div
+            key={i}
+            style={{
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'space-between',
+              fontFamily:     'var(--font-mono)',
+              fontSize:       '0.62rem',
+              lineHeight:     1.6,
+              borderBottom:   i < names.length - 1
+                ? '1px solid var(--color-border)'
+                : 'none',
+              paddingBottom:  i < names.length - 1 ? '0.15rem' : 0,
+            }}
+          >
+            {/* Node badge */}
+            <span
+              style={{
+                color:         'var(--color-primary)',
+                fontWeight:    700,
+                minWidth:      '2.8rem',
+              }}
+            >
+              {name}
+            </span>
+
+            {/* Raw coords */}
+            <span style={{ color: 'var(--color-muted)' }}>
+              ({coords[i]?.x ?? '?'}, {coords[i]?.y ?? '?'})
+            </span>
+
+            {/* Arrow */}
+            <span style={{ color: 'var(--color-border)', margin: '0 0.35rem' }}>→</span>
+
+            {/* Node index label */}
+            <span style={{ color: 'var(--color-text)', opacity: 0.7 }}>
+              {t.is ? `node ${i}` : `NODE ${i}`}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

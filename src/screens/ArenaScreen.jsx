@@ -26,18 +26,31 @@ export default function ArenaScreen() {
     gamePhase, resetGame, nodes,
     startNode, humanEdges,
     nodeSource, standardSize, customRaw, difficulty,
-    setNodes,
+    setNodes, setCustomNodeNames,
   } = useGameStore()
   const { mobileDrawerOpen, openDrawer, notification, viewMode } = useUiStore()
   const { reset: resetAi } = useAiStore()
   const t = useTheme()
 
   // ── Spawn helper — single source of truth for node creation ─────────────
-  const spawnNodes = useCallback(() => {
+  const spawnNodes = useCallback((attempt = 0) => {
     const el = canvasRef.current
     if (!el) return
-    const W = el.offsetWidth  || el.clientWidth  || 800
-    const H = el.offsetHeight || el.clientHeight || 600
+
+    // Guard: canvas must have real dimensions before we scale nodes.
+    // During React's first paint the layout may not be committed yet.
+    // We retry up to 3 times with increasing delays.
+    let W = el.offsetWidth  || el.clientWidth
+    let H = el.offsetHeight || el.clientHeight
+
+    if ((W < 200 || H < 200) && attempt < 3) {
+      setTimeout(() => spawnNodes(attempt + 1), 80 * (attempt + 1))
+      return
+    }
+
+    // Absolute fallback so scaleNodesToCanvas never gets 0-size canvas
+    W = Math.max(W || 0, 500)
+    H = Math.max(H || 0, 400)
 
     const state = useGameStore.getState()
     let newNodes = []
@@ -45,22 +58,26 @@ export default function ArenaScreen() {
     if (state.nodeSource === 'standard') {
       const set = STANDARD_SETS[state.standardSize] || STANDARD_SETS.M
       newNodes = scaleNodesToCanvas(set.nodes, W, H)
+      setCustomNodeNames([], [])
     } else if (state.nodeSource === 'custom') {
-      const { nodes: parsed, errors } = parseCustomNodes(state.customRaw)
+      const { nodes: parsed, names, rawCoords, errors } = parseCustomNodes(state.customRaw)
       if (parsed.length < 3) {
-        showNotification(
+        useUiStore.getState().showNotification(
           errors.length ? `Parse error: ${errors[0]}` : 'Need at least 3 valid nodes',
           'warn'
         )
         return
       }
       newNodes = scaleNodesToCanvas(parsed, W, H)
+      // Store names + raw coords so AIPanel can show the mapping popup
+      setCustomNodeNames(names, rawCoords)
     } else {
       newNodes = generateNodes(state.difficulty, W, H)
+      setCustomNodeNames([], [])
     }
 
     setNodes(newNodes)
-    // No notification here — the permanent placing banner guides the player
+    // No success notification — the placing-phase banner guides the player
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Mount: reset state, spawn nodes once canvas has rendered ────────────
@@ -70,14 +87,15 @@ export default function ArenaScreen() {
     resetAi()
     useUiStore.setState({ viewMode: '2d' })
 
-    // Wait one frame so canvasRef.current has real dimensions
-    const timer = requestAnimationFrame(() => {
-      if (isMounted.current) spawnNodes()
-    })
+    // Use a short timeout instead of rAF — rAF fires before CSS layout is fully
+    // committed on some browsers. 50ms ensures the flex layout has measured.
+    const timer = setTimeout(() => {
+      if (isMounted.current) spawnNodes(0)
+    }, 50)
 
     return () => {
       isMounted.current = false
-      cancelAnimationFrame(timer)
+      clearTimeout(timer)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
