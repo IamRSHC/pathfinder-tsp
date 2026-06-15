@@ -52,6 +52,13 @@ export default function ArenaScreen() {
     W = Math.max(W || 0, 500)
     H = Math.max(H || 0, 400)
 
+    // On mobile the bottom bar (Stats / AI buttons, ~50px) sits on top of the
+    // canvas as position:absolute. Subtract its height from the spawn area so
+    // no node is ever placed behind it and becomes unreachable.
+    // Desktop (lg: breakpoint = 1024px) has no bottom bar — no adjustment needed.
+    const isMobile = window.innerWidth < 1024
+    if (isMobile) H = Math.max(H - 56, 300)
+
     const state = useGameStore.getState()
     let newNodes = []
 

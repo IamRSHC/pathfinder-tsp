@@ -33,6 +33,7 @@ export function usePixiGame(containerRef) {
   const hoveredRef   = useRef(-1)
   const selectedRef  = useRef(-1)
   const pulseTickRef = useRef(0)
+  const panningRef   = useRef(false)  // true when last touch gesture was a pan
 
   const { nodes, humanEdges, aiEdges, gamePhase, startNode, difficulty,
           nodeSource, standardSize, customRaw,
@@ -149,7 +150,11 @@ export function usePixiGame(containerRef) {
         hoveredRef.current = -1; circle.tint = 0xffffff
         if (selectedRef.current !== idx) glow.alpha = theme === 'serene' ? 0.1 : 0.25
       })
-      cont.on('pointerup', () => handleNodeClick(idx))
+      cont.on('pointerup', () => {
+        // On mobile, ignore pointerup that ended a pan gesture
+        if (panningRef.current) { panningRef.current = false; return }
+        handleNodeClick(idx)
+      })
 
       app.stage.addChild(cont)
       nodesGfxRef.current.push(cont)
@@ -188,6 +193,102 @@ export function usePixiGame(containerRef) {
     sugGfx.lineStyle(theme === 'serene' ? 1 : 2, C.contested, theme === 'serene' ? 0.6 : 0.9)
     sugGfx.drawCircle(nodes[to].x, nodes[to].y, 16)
   }, [suggestion, nodes, theme])
+
+  // ── Mobile touch: pan (1 finger) + pinch-zoom (2 fingers) ─────────────
+  // Desktop mouse events are completely untouched.
+  // Guards: 'ontouchstart' in window — only runs on touch devices.
+  useEffect(() => {
+    const app = appRef.current
+    if (!app || !('ontouchstart' in window)) return
+
+    const canvas = app.view
+    let panStartX     = 0, panStartY     = 0
+    let stageStartX   = 0, stageStartY   = 0
+    let totalMoveDist = 0
+    let isPanning     = false
+    let pinchStartDist  = 0
+    let pinchStartScale = 1
+
+    function touchDist(t) {
+      const dx = t[0].clientX - t[1].clientX
+      const dy = t[0].clientY - t[1].clientY
+      return Math.sqrt(dx * dx + dy * dy)
+    }
+
+    // Clamp stage so user never pans into empty space beyond the canvas bounds
+    function clampStage() {
+      const sc  = app.stage.scale.x
+      const pr  = window.devicePixelRatio || 1
+      const vw  = app.view.width  / pr
+      const vh  = app.view.height / pr
+      const ww  = vw * sc
+      const wh  = vh * sc
+      app.stage.x = Math.max(Math.min(0, vw - ww), Math.min(0, app.stage.x))
+      app.stage.y = Math.max(Math.min(0, vh - wh), Math.min(0, app.stage.y))
+    }
+
+    function onTouchStart(e) {
+      panningRef.current = false
+      if (e.touches.length === 1) {
+        panStartX     = e.touches[0].clientX
+        panStartY     = e.touches[0].clientY
+        stageStartX   = app.stage.x
+        stageStartY   = app.stage.y
+        totalMoveDist = 0
+        isPanning     = false
+        pinchStartDist = 0
+      } else if (e.touches.length === 2) {
+        pinchStartDist  = touchDist(e.touches)
+        pinchStartScale = app.stage.scale.x
+        isPanning       = false
+      }
+    }
+
+    function onTouchMove(e) {
+      e.preventDefault()
+      if (e.touches.length === 1 && pinchStartDist === 0) {
+        const dx = e.touches[0].clientX - panStartX
+        const dy = e.touches[0].clientY - panStartY
+        totalMoveDist = Math.sqrt(dx * dx + dy * dy)
+        if (totalMoveDist > 8) {
+          isPanning   = true
+          app.stage.x = stageStartX + dx
+          app.stage.y = stageStartY + dy
+          clampStage()
+        }
+      } else if (e.touches.length === 2 && pinchStartDist > 0) {
+        const dist     = touchDist(e.touches)
+        const newScale = Math.max(0.45, Math.min(2.8, pinchStartScale * (dist / pinchStartDist)))
+        const rect     = canvas.getBoundingClientRect()
+        const mx       = ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left
+        const my       = ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top
+        const ratio    = newScale / app.stage.scale.x
+        app.stage.x    = mx - (mx - app.stage.x) * ratio
+        app.stage.y    = my - (my - app.stage.y) * ratio
+        app.stage.scale.set(newScale)
+        clampStage()
+        isPanning = true
+      }
+    }
+
+    function onTouchEnd(e) {
+      if (e.touches.length === 0) {
+        // Expose pan state so node pointerup guard can read it
+        panningRef.current = isPanning
+        isPanning     = false
+        pinchStartDist = 0
+      }
+    }
+
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true  })
+    canvas.addEventListener('touchmove',  onTouchMove,  { passive: false })
+    canvas.addEventListener('touchend',   onTouchEnd,   { passive: true  })
+    return () => {
+      canvas.removeEventListener('touchstart', onTouchStart)
+      canvas.removeEventListener('touchmove',  onTouchMove)
+      canvas.removeEventListener('touchend',   onTouchEnd)
+    }
+  }, [nodes]) // re-attach after node rebuild (new containers on stage)
 
   // ── Pulse ticker ──────────────────────────────────────────────────────
   useEffect(() => {
