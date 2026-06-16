@@ -33,7 +33,7 @@ export function usePixiGame(containerRef) {
   const hoveredRef   = useRef(-1)
   const selectedRef  = useRef(-1)
   const pulseTickRef = useRef(0)
-  const panningRef   = useRef(false)  // true when last touch gesture was a pan
+  const nodeDownStagePos = useRef({ x: 0, y: 0 })  // stage position at last pointerdown
 
   const { nodes, humanEdges, aiEdges, gamePhase, startNode, difficulty,
           nodeSource, standardSize, customRaw,
@@ -150,9 +150,20 @@ export function usePixiGame(containerRef) {
         hoveredRef.current = -1; circle.tint = 0xffffff
         if (selectedRef.current !== idx) glow.alpha = theme === 'serene' ? 0.1 : 0.25
       })
+      cont.on('pointerdown', () => {
+        // Record stage position at the moment of touch/click down.
+        // Used in pointerup to distinguish a tap from a pan gesture.
+        nodeDownStagePos.current = { x: app.stage.x, y: app.stage.y }
+      })
       cont.on('pointerup', () => {
-        // On mobile, ignore pointerup that ended a pan gesture
-        if (panningRef.current) { panningRef.current = false; return }
+        // Compare stage position now vs at pointerdown.
+        // If the stage moved more than 10px the user was panning — not clicking.
+        // This works for BOTH desktop (stage never moves, delta always 0)
+        // and mobile (stage moves during pan, delta > 10).
+        // No race condition: both events come from Pixi's own ordered queue.
+        const dx = Math.abs(app.stage.x - nodeDownStagePos.current.x)
+        const dy = Math.abs(app.stage.y - nodeDownStagePos.current.y)
+        if (dx > 10 || dy > 10) return  // was a pan — ignore
         handleNodeClick(idx)
       })
 
@@ -228,7 +239,6 @@ export function usePixiGame(containerRef) {
     }
 
     function onTouchStart(e) {
-      panningRef.current = false
       if (e.touches.length === 1) {
         panStartX     = e.touches[0].clientX
         panStartY     = e.touches[0].clientY
@@ -273,9 +283,9 @@ export function usePixiGame(containerRef) {
 
     function onTouchEnd(e) {
       if (e.touches.length === 0) {
-        // Expose pan state so node pointerup guard can read it
-        panningRef.current = isPanning
-        isPanning     = false
+        // isPanning state is now consumed by the stage-delta check in
+        // each node's pointerup handler — no flag needed here.
+        isPanning      = false
         pinchStartDist = 0
       }
     }
