@@ -34,6 +34,7 @@ export function usePixiGame(containerRef) {
   const selectedRef  = useRef(-1)
   const pulseTickRef = useRef(0)
   const nodeDownStagePos = useRef({ x: 0, y: 0 })  // stage position at last pointerdown
+  const multiTouchRef    = useRef(false)            // true when 2+ fingers are/were on screen
 
   const { nodes, humanEdges, aiEdges, gamePhase, startNode, difficulty,
           nodeSource, standardSize, customRaw,
@@ -156,14 +157,18 @@ export function usePixiGame(containerRef) {
         nodeDownStagePos.current = { x: app.stage.x, y: app.stage.y }
       })
       cont.on('pointerup', () => {
-        // Compare stage position now vs at pointerdown.
-        // If the stage moved more than 10px the user was panning — not clicking.
-        // This works for BOTH desktop (stage never moves, delta always 0)
-        // and mobile (stage moves during pan, delta > 10).
-        // No race condition: both events come from Pixi's own ordered queue.
+        // Guard 1 — Multi-touch: if 2+ fingers were ever on screen during
+        // this interaction, it was a pinch/zoom — never a node tap.
+        // multiTouchRef is set synchronously in touchstart (before this fires).
+        // Desktop: touchstart never fires → multiTouchRef always false → no impact.
+        if (multiTouchRef.current) return
+
+        // Guard 2 — Single-finger pan: if the stage moved > 10px since
+        // pointerdown, the user was panning, not tapping.
         const dx = Math.abs(app.stage.x - nodeDownStagePos.current.x)
         const dy = Math.abs(app.stage.y - nodeDownStagePos.current.y)
-        if (dx > 10 || dy > 10) return  // was a pan — ignore
+        if (dx > 10 || dy > 10) return
+
         handleNodeClick(idx)
       })
 
@@ -248,6 +253,11 @@ export function usePixiGame(containerRef) {
         isPanning     = false
         pinchStartDist = 0
       } else if (e.touches.length === 2) {
+        // ── SOLUTION A: Multi-touch guard ────────────────────────────────
+        // Set immediately when 2nd finger touches — BEFORE any pointerup fires.
+        // This is the only reliable moment: native touchstart always precedes
+        // Pixi's synthetic pointerup in the browser event queue.
+        multiTouchRef.current = true
         pinchStartDist  = touchDist(e.touches)
         pinchStartScale = app.stage.scale.x
         isPanning       = false
@@ -281,12 +291,20 @@ export function usePixiGame(containerRef) {
       }
     }
 
+    let multiTouchResetTimer = null
     function onTouchEnd(e) {
       if (e.touches.length === 0) {
-        // isPanning state is now consumed by the stage-delta check in
-        // each node's pointerup handler — no flag needed here.
         isPanning      = false
         pinchStartDist = 0
+        // Reset the multi-touch flag after a 200ms cooldown.
+        // Why 200ms: fingers don't always lift simultaneously. Finger A can
+        // lift and fire pointerup BEFORE finger B lifts and fires touchend.
+        // The cooldown keeps the flag true long enough to block all staggered
+        // pointerup events before resetting for the next interaction.
+        clearTimeout(multiTouchResetTimer)
+        multiTouchResetTimer = setTimeout(() => {
+          multiTouchRef.current = false
+        }, 200)
       }
     }
 
