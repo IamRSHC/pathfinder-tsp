@@ -62,7 +62,7 @@ export default function AIPanel({ className = '' }) {
           <span className="stat-label">{t.is ? 'confidence' : 'CONFIDENCE'}</span>
           <span className={`font-mono font-bold text-sm ${confidenceColor}`}>{confidence}%</span>
         </div>
-        <div className={`h-2 ${t.track}`}>
+        <div className="h-2 rounded-full overflow-hidden bg-game-border/30">
           <div
             className="h-full rounded-full transition-all duration-700"
             style={{ width: `${confidence}%`, background: t.confidenceFill(confidence) }}

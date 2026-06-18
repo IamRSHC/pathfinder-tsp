@@ -14,12 +14,12 @@ export default function DifficultyDial({ value, onChange }) {
   return (
     <div className="space-y-2">
       <span className="stat-label block">{t.is ? 'node count' : 'NODE COUNT'}</span>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex gap-1.5 w-full">
         {PRESETS.map(p => (
           <button
             key={p.value}
             onClick={() => onChange(p.value)}
-            className={`flex flex-col items-center px-3 py-2 rounded border transition-all duration-150
+            className={`flex flex-col items-center flex-1 min-w-0 px-1 py-2 rounded border transition-all duration-150
               font-mono text-sm font-bold
               ${value === p.value
                 ? `${p.color} border-current bg-current/10`

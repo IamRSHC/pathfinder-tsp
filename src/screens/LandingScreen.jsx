@@ -221,6 +221,8 @@ export default function LandingScreen() {
                     style={{
                       flex: 1, height: '1px',
                       background: 'var(--color-border)',
+                      opacity: t.is ? 0.6 : 1,
+                      minWidth: '20px',
                     }}
                   />
                 </div>
@@ -273,7 +275,7 @@ export default function LandingScreen() {
                 style={{
                   fontFamily:    'var(--font-display)',
                   letterSpacing: t.is ? '0.04em' : '0.15em',
-                  borderRadius:  'var(--radius-card)',
+                  borderRadius:  '0.5rem',  // matches mode cards in both themes
                   background:    'var(--color-primary)',
                   color:         t.is ? '#FFFFFF' : '#090d14',
                   boxShadow:     t.is

@@ -12,9 +12,9 @@ export default function ViewToggle() {
   const muted     = 'var(--color-muted)'
 
   // Pill colours mirror theme toggle: active side uses a gradient badge
-  const pillBg   = t.is
-    ? (is3d ? '#E8F5EE' : '#F0F0F0')
-    : (is3d ? '#0d1f2d' : '#162032')
+  // Cyber: always #162032 regardless of 2D/3D state — matches Navbar theme toggle
+  // Serene: always #E8F5EE — light green tint matches the primary palette
+  const pillBg = t.is ? '#E8F5EE' : '#162032'
 
   const pillBorder = t.is
     ? '1.5px solid #2D6A4F'

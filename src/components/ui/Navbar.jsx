@@ -80,7 +80,8 @@ export default function Navbar() {
               padding:        'clamp(0.25rem, 1vw, 0.35rem) clamp(0.35rem, 1.5vw, 0.6rem)',
               borderRadius:   '0.375rem',
               textDecoration: 'none',
-              borderBottom:   pathname === l.to && isSerene ? '2px solid var(--color-primary)' : '2px solid transparent',
+              borderBottom:   'none',
+              boxShadow:      pathname === l.to && isSerene ? 'inset 0 -2px 0 var(--color-primary)' : 'none',
               transition:     'color 0.15s ease, background 0.15s ease',
               whiteSpace:     'nowrap',
             }}

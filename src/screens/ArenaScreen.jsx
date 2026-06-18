@@ -206,7 +206,7 @@ export default function ArenaScreen() {
             <button
               onClick={() => openDrawer('stats')}
               className="flex items-center gap-2 font-mono text-xs text-game-muted
-                hover:text-game-cyan transition-colors"
+                active:text-game-cyan transition-colors"
             >
               📊 {t.is ? 'Stats' : 'STATS'}
             </button>
@@ -221,7 +221,7 @@ export default function ArenaScreen() {
             <button
               onClick={() => openDrawer('ai')}
               className="flex items-center gap-2 font-mono text-xs text-game-muted
-                hover:text-game-amber transition-colors"
+                active:text-game-amber transition-colors"
             >
               🤖 {t.is ? 'AI' : 'AI'}
               <span className="w-2 h-2 rounded-full bg-game-green inline-block ml-1" />

@@ -63,22 +63,23 @@ export default function StatsPanel({ className = '' }) {
         <StatItem label={t.is ? 'nodes'     : 'NODES'}     value={nodes.length || difficulty} color="text-game-text"  />
         <StatItem label={t.is ? 'edges set' : 'EDGES SET'} value={humanEdges.length}       color={t.secondary.text} />
 
-        {/* Edges remaining — routing phase only */}
+        {/* Routing stats — appear together once routing begins, no layout jump */}
         {gamePhase === 'routing' && nodes.length > 0 && (
-          <StatItem
-            label={t.is ? 'edges remaining' : 'EDGES REMAINING'}
-            value={edgesRemaining(humanEdges.length, nodes.length)}
-            color={edgesRemaining(humanEdges.length, nodes.length) <= 1 ? t.secondary.text : t.primary.text}
-          />
-        )}
-
-        {/* Start node — shown once set */}
-        {startNode !== null && gamePhase !== 'idle' && gamePhase !== 'placing' && (
-          <StatItem
-            label={t.is ? 'start / home node' : 'START / HOME NODE'}
-            value={`★ ${startNode}`}
-            color={t.primary.text}
-          />
+          <>
+            <StatItem
+              label={t.is ? 'edges remaining' : 'EDGES REMAINING'}
+              value={edgesRemaining(humanEdges.length, nodes.length)}
+              color={edgesRemaining(humanEdges.length, nodes.length) <= 1
+                ? t.secondary.text : t.primary.text}
+            />
+            {startNode !== null && (
+              <StatItem
+                label={t.is ? 'start / home node' : 'START / HOME NODE'}
+                value={`★ ${startNode}`}
+                color={t.primary.text}
+              />
+            )}
+          </>
         )}
       </div>
 

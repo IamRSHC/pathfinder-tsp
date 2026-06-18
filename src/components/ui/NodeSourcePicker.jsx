@@ -29,11 +29,17 @@ export default function NodeSourcePicker() {
   const muted     = 'var(--color-muted)'
   const text      = 'var(--color-text)'
 
-  // Pill geometry
+  // Pill geometry — sliderLeft uses calc() so it scales with border-box correctly
   const pillW   = 216
   const pillH   = 30
   const sliderW = 68
-  const sliderOffsets = { random: 2, standard: 74, custom: 146 }
+  // Each of 3 equal segments = 33.333% of inner width
+  // Slider is centred in its segment: offset = segmentIndex * (100%/3) + 2px inset
+  const sliderLefts = {
+    random:   'calc(0 * (100% / 3) + 2px)',
+    standard: 'calc(1 * (100% / 3) + 2px)',
+    custom:   'calc(2 * (100% / 3) + 2px)',
+  }
 
   const sliderBg = t.is
     ? 'linear-gradient(135deg,#2D6A4F,#52B788)'
@@ -68,7 +74,7 @@ export default function NodeSourcePicker() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
-      <span className="stat-label" style={{ display: 'block' }}>
+      <span className="stat-label">
         {t.is ? 'node source' : 'NODE SOURCE'}
       </span>
 
@@ -94,7 +100,7 @@ export default function NodeSourcePicker() {
           style={{
             position:   'absolute',
             top:        '3px',
-            left:       `${sliderOffsets[nodeSource]}px`,
+            left:       sliderLefts[nodeSource],
             width:      `${sliderW}px`,
             height:     `${pillH - 6}px`,
             borderRadius: '999px',
