@@ -39,9 +39,9 @@ export default function ResultsScreen() {
   const gap      = computeGapPercent(pathLength, optimalBound)
   const userWon  = pathLength <= aiLen || !aiLen
 
-  // Grade the human score
-  const hGrade = scoreGrade(humanScore)
-  const aGrade = scoreGrade(aiScore)
+  // Grade the human score (normalised against node count so grades are fair across difficulties)
+  const hGrade = scoreGrade(humanScore, nodes.length)
+  const aGrade = scoreGrade(aiScore,    nodes.length)
 
   // Synergy bonus in Co-Pilot mode: human beat AI by >10%
   const synergyBonus = mode === 'copilot' && aiLen > 0 && pathLength < aiLen * 0.9
@@ -49,7 +49,10 @@ export default function ResultsScreen() {
     : 0
 
   const handleShare = () => {
-    const text = `PATHFINDER TSP — ${difficulty} nodes · Score ${humanScore.toLocaleString()} · Grade ${hGrade.grade} · pathfinder-tsp.vercel.app`
+    // In Co-Pilot mode the player sees totalScore (humanScore + synergyBonus) on screen,
+    // so share the same number — not the raw humanScore.
+    const displayScore = mode === 'copilot' ? humanScore + synergyBonus : humanScore
+    const text = `PATHFINDER TSP — ${difficulty} nodes · Score ${displayScore.toLocaleString()} · Grade ${hGrade.grade} · pathfinder-tsp.vercel.app`
     navigator.clipboard?.writeText(text)
   }
 

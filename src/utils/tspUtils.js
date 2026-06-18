@@ -159,14 +159,30 @@ export function computeScore({ pathLength, optimalBound, timeElapsed, nodeCount 
 }
 
 /**
- * Map a numeric score to a letter grade and description.
+ * Map a numeric score to a letter grade.
+ *
+ * Grades are normalised against the maximum achievable score for the given
+ * node count so a 50-node game and a 10-node game use the same S/A/B/C
+ * thresholds.  Without normalisation the nodeFactor multiplier inflates raw
+ * scores on larger puzzles and every mediocre run would earn an 'S'.
+ *
+ * maxPossible = SCORE_BASE × nodeFactor × 1.0 (perfect efficiency, t=0)
+ * ratio       = score / maxPossible   → 0–1, same scale across difficulties
+ *
+ * S  ≥ 90% of maximum  — near-optimal routing
+ * A  ≥ 70%             — efficient
+ * B  ≥ 50%             — acceptable
+ * C  < 50%             — needs improvement
  */
-export function scoreGrade(score) {
-  // Grade thresholds are based on efficiency against optimal; use the score ratio
-  if (score >= SCORE_BASE * 0.90) return { grade: 'S', label: 'Optimal', color: 'text-game-green' }
-  if (score >= SCORE_BASE * 0.70) return { grade: 'A', label: 'Excellent', color: 'text-game-cyan' }
-  if (score >= SCORE_BASE * 0.50) return { grade: 'B', label: 'Good', color: 'text-game-amber' }
-  return                                  { grade: 'C', label: 'Needs Work', color: 'text-game-red' }
+export function scoreGrade(score, nodeCount = 10) {
+  const nodeFactor   = Math.max(1, Math.log10(Math.max(2, nodeCount)))
+  const maxPossible  = SCORE_BASE * nodeFactor          // best score achievable (t=0, perfect path)
+  const ratio        = score / maxPossible              // 0–1
+
+  if (ratio >= 0.90) return { grade: 'S', label: 'Optimal',      color: 'text-game-green' }
+  if (ratio >= 0.70) return { grade: 'A', label: 'Excellent',     color: 'text-game-cyan'  }
+  if (ratio >= 0.50) return { grade: 'B', label: 'Good',          color: 'text-game-amber' }
+  return                     { grade: 'C', label: 'Needs Work',   color: 'text-game-red'   }
 }
 
 // ── Standard benchmark node sets ──────────────────────────────────────────
