@@ -129,6 +129,46 @@ export function scaleNodesToCanvas(rawNodes, width, height, padding = 60) {
   }))
 }
 
+// ── Scoring System ────────────────────────────────────────────────────────
+/**
+ * Compute a score for a completed TSP tour.
+ *
+ * Higher score = shorter path = better.
+ *
+ * Formula:
+ *   score = BASE × (optimalBound / pathLength) × timeBonus × nodeFactor
+ *
+ * - BASE = 10 000 (theoretical ceiling)
+ * - optimalBound / pathLength → 1.0 means you matched the lower bound (perfect)
+ * - timeBonus decays from 1.0 → 0.5 over MAX_TIME seconds
+ * - nodeFactor rewards harder puzzles (more nodes = bigger multiplier)
+ */
+export const SCORE_BASE     = 10_000
+export const SCORE_MAX_TIME = 600     // seconds before time bonus floors
+export const SCORE_TIME_FLOOR = 0.5  // minimum time multiplier
+
+export function computeScore({ pathLength, optimalBound, timeElapsed, nodeCount }) {
+  if (!pathLength || !optimalBound || pathLength <= 0) return 0
+
+  const efficiency  = Math.min(1, optimalBound / pathLength)        // 0–1, higher = better path
+  const timeBonus   = Math.max(SCORE_TIME_FLOOR,
+    1 - (timeElapsed / SCORE_MAX_TIME) * (1 - SCORE_TIME_FLOOR))    // 1.0 → 0.5
+  const nodeFactor  = Math.max(1, Math.log10(Math.max(2, nodeCount))) // ≥1, grows with nodes
+
+  return Math.round(SCORE_BASE * efficiency * timeBonus * nodeFactor)
+}
+
+/**
+ * Map a numeric score to a letter grade and description.
+ */
+export function scoreGrade(score) {
+  // Grade thresholds are based on efficiency against optimal; use the score ratio
+  if (score >= SCORE_BASE * 0.90) return { grade: 'S', label: 'Optimal', color: 'text-game-green' }
+  if (score >= SCORE_BASE * 0.70) return { grade: 'A', label: 'Excellent', color: 'text-game-cyan' }
+  if (score >= SCORE_BASE * 0.50) return { grade: 'B', label: 'Good', color: 'text-game-amber' }
+  return                                  { grade: 'C', label: 'Needs Work', color: 'text-game-red' }
+}
+
 // ── Standard benchmark node sets ──────────────────────────────────────────
 // Coords are in a 0–1000 normalised space; scaleNodesToCanvas() maps them to canvas.
 export const STANDARD_SETS = {

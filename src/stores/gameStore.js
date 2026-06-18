@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { isTourComplete } from '../utils/tourValidator'
+import { computeScore }   from '../utils/tspUtils'
 
 export const useGameStore = create((set, get) => ({
   // Config
@@ -25,6 +26,10 @@ export const useGameStore = create((set, get) => ({
   gamePhase:      'idle',    // 'idle'|'placing'|'routing'|'complete'
   // 'placing' = nodes spawned, waiting for player to pick start node
   // 'routing' = start node set, player is connecting edges
+
+  // Scores (computed on game complete)
+  humanScore:     0,
+  aiScore:        0,
 
   // Actions
   setMode:         (mode)         => set({ mode }),
@@ -85,11 +90,24 @@ export const useGameStore = create((set, get) => ({
 
   completeGame: () => set({ gamePhase: 'complete' }),
 
+  // Called from ResultsScreen once AI path length is known
+  finalizeScore: (aiPathLength) => set(s => {
+    const params = {
+      optimalBound: s.optimalBound,
+      timeElapsed:  s.timeElapsed,
+      nodeCount:    s.nodes.length,
+    }
+    const humanScore = computeScore({ pathLength: s.pathLength, ...params })
+    const aiScore    = computeScore({ pathLength: aiPathLength, ...params })
+    return { humanScore, aiScore }
+  }),
+
   resetGame: () => set({
     nodes: [], startNode: null, customNodeNames: [], customRawCoords: [],
     humanEdges: [], aiEdges: [], contestedEdges: [],
     currentPath: [], pathLength: 0, timeElapsed: 0,
     moveHistory: [], gamePhase: 'idle',
+    humanScore: 0, aiScore: 0,
   }),
 }))
 

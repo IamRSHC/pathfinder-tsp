@@ -1,34 +1,61 @@
-import { useNavigate }    from 'react-router-dom'
-import Navbar             from '../components/ui/Navbar'
-import RouteReplay        from '../components/results/RouteReplay'
-import CollaborationScore from '../components/results/CollaborationScore'
-import ConvergenceGraph   from '../components/results/ConvergenceGraph'
-import { useGameStore }   from '../stores/gameStore'
-import { useAiStore }     from '../stores/aiStore'
-import { useTheme }       from '../hooks/useTheme'
-import { nearestNeighborTour, formatDist, computeGapPercent, formatTime } from '../utils/tspUtils'
+import { useEffect }        from 'react'
+import { useNavigate }      from 'react-router-dom'
+import Navbar                from '../components/ui/Navbar'
+import RouteReplay           from '../components/results/RouteReplay'
+import CollaborationScore    from '../components/results/CollaborationScore'
+import ConvergenceGraph      from '../components/results/ConvergenceGraph'
+import { useGameStore }      from '../stores/gameStore'
+import { useAiStore }        from '../stores/aiStore'
+import { useTheme }          from '../hooks/useTheme'
+import {
+  nearestNeighborTour,
+  formatDist,
+  computeGapPercent,
+  formatTime,
+  computeScore,
+  scoreGrade,
+  SCORE_BASE,
+} from '../utils/tspUtils'
 
 export default function ResultsScreen() {
   const navigate = useNavigate()
-  const { nodes, humanEdges, pathLength, optimalBound, timeElapsed, mode, difficulty } = useGameStore()
+  const {
+    nodes, humanEdges, pathLength, optimalBound,
+    timeElapsed, mode, difficulty,
+    humanScore, aiScore, finalizeScore,
+  } = useGameStore()
   const { aiPathLength } = useAiStore()
   const t = useTheme()
 
-  const aiTour  = nearestNeighborTour(nodes)
-  const aiLen   = aiTour.length
-  const gap     = computeGapPercent(pathLength, optimalBound)
-  const userWon = pathLength <= aiLen || !aiLen
+  // Compute AI tour via nearest-neighbour (same as before)
+  const aiTour = nearestNeighborTour(nodes)
+  const aiLen  = aiTour.length || aiPathLength || 0
+
+  // Finalize scores once on mount
+  useEffect(() => {
+    if (aiLen > 0) finalizeScore(aiLen)
+  }, [aiLen]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const gap      = computeGapPercent(pathLength, optimalBound)
+  const userWon  = pathLength <= aiLen || !aiLen
+
+  // Grade the human score
+  const hGrade = scoreGrade(humanScore)
+  const aGrade = scoreGrade(aiScore)
+
+  // Synergy bonus in Co-Pilot mode: human beat AI by >10%
+  const synergyBonus = mode === 'copilot' && aiLen > 0 && pathLength < aiLen * 0.9
+    ? Math.round((aiLen - pathLength) / aiLen * SCORE_BASE * 0.05)
+    : 0
 
   const handleShare = () => {
-    const text = `PATHFINDER TSP — ${difficulty} nodes, gap ${gap}%, ${formatTime(timeElapsed)} | pathfinder-tsp.vercel.app`
+    const text = `PATHFINDER TSP — ${difficulty} nodes · Score ${humanScore.toLocaleString()} · Grade ${hGrade.grade} · pathfinder-tsp.vercel.app`
     navigator.clipboard?.writeText(text)
   }
 
   const modeLabel = (m) => {
-    const C = ['SOLO RUN', 'CO-PILOT', 'VS AI']
-    const S = ['Solo Run', 'Co-Pilot', 'Vs AI']
-    const i = ['solo', 'copilot', 'vs'].indexOf(m)
-    return i >= 0 ? (t.is ? S[i] : C[i]) : m
+    const labels = { solo: 'Solo Run', copilot: 'Co-Pilot', vs: 'Vs AI' }
+    return t.is ? labels[m] : (labels[m] || m).toUpperCase()
   }
 
   return (
@@ -37,12 +64,10 @@ export default function ResultsScreen() {
 
       <div className="flex-1 px-4 sm:px-6 lg:px-8 py-6 max-w-6xl mx-auto w-full space-y-6">
 
-        {/* Header */}
+        {/* ── Header ── */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className={t.pageTitle}>
-              {t.is ? 'Debrief' : 'DEBRIEF'}
-            </h1>
+            <h1 className={t.pageTitle}>{t.is ? 'Debrief' : 'DEBRIEF'}</h1>
             <p className={t.pageSubtitle}>
               {difficulty} {t.is ? 'nodes' : 'nodes'} · {modeLabel(mode)}
             </p>
@@ -57,7 +82,19 @@ export default function ResultsScreen() {
           </div>
         </div>
 
-        {/* Score cards */}
+        {/* ── SCORE HERO ── */}
+        <ScoreHero
+          mode={mode}
+          humanScore={humanScore}
+          aiScore={aiScore}
+          hGrade={hGrade}
+          aGrade={aGrade}
+          synergyBonus={synergyBonus}
+          userWon={userWon}
+          t={t}
+        />
+
+        {/* ── Stats row ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <ScoreCard label={t.is ? 'Your path'      : 'YOUR PATH'}      value={formatDist(pathLength) || '—'} color={t.primary.text}   />
           <ScoreCard label={t.is ? 'AI-only path'   : 'AI-ONLY PATH'}   value={formatDist(aiLen) || '—'}      color={t.secondary.text} />
@@ -69,7 +106,7 @@ export default function ResultsScreen() {
           <ScoreCard label={t.is ? 'Time' : 'TIME'} value={formatTime(timeElapsed)} color="text-game-text" />
         </div>
 
-        {/* Winner banner */}
+        {/* ── VS Winner banner ── */}
         {mode === 'vs' && (
           <div className={`flex items-center gap-3 p-4 rounded-lg border
             ${userWon
@@ -85,14 +122,14 @@ export default function ResultsScreen() {
               </p>
               <p className="font-mono text-xs opacity-70">
                 {userWon
-                  ? `Your path was ${formatDist(aiLen - pathLength)} units shorter.`
-                  : `AI path was ${formatDist(pathLength - aiLen)} units shorter.`}
+                  ? `Your score: ${humanScore.toLocaleString()} vs AI: ${aiScore.toLocaleString()}`
+                  : `AI score: ${aiScore.toLocaleString()} vs Your score: ${humanScore.toLocaleString()}`}
               </p>
             </div>
           </div>
         )}
 
-        {/* Side-by-side path comparison */}
+        {/* ── Path comparison ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className={`${t.card} ${t.primary.border} p-4`}>
             <span className="stat-label block mb-2">{t.is ? 'your path' : 'YOUR PATH'}</span>
@@ -112,17 +149,17 @@ export default function ResultsScreen() {
         <CollaborationScore />
         <ConvergenceGraph />
 
-        {/* Application layer */}
+        {/* ── Application layer ── */}
         <div className={`${t.card} p-5`}>
           <h3 className={`${t.sectionTitle} mb-3`}>
             {t.is ? 'What this solves in the real world' : 'WHAT THIS SOLVES IN THE REAL WORLD'}
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { icon: '💊', title: t.is ? 'Drug Discovery'     : 'Drug Discovery',    desc: 'Protein docking path optimization'  },
-              { icon: '🧬', title: t.is ? 'Genome Sequencing'  : 'Genome Sequencing', desc: 'Fragment assembly ordering'          },
-              { icon: '💻', title: t.is ? 'SoC Routing'        : 'SoC Routing',       desc: 'Chip wire-length minimization'       },
-              { icon: '🚚', title: t.is ? 'Last-Mile Logistics' : 'Last-Mile Logistics', desc: 'Delivery route optimization'       },
+              { icon: '💊', title: 'Drug Discovery',     desc: 'Protein docking path optimization'  },
+              { icon: '🧬', title: 'Genome Sequencing',  desc: 'Fragment assembly ordering'          },
+              { icon: '💻', title: 'SoC Routing',        desc: 'Chip wire-length minimization'       },
+              { icon: '🚚', title: 'Last-Mile Logistics', desc: 'Delivery route optimization'       },
             ].map(a => (
               <div key={a.title} className="p-3 bg-game-bg rounded border border-game-border">
                 <span className="text-xl">{a.icon}</span>
@@ -138,6 +175,168 @@ export default function ResultsScreen() {
   )
 }
 
+// ── Score Hero component ───────────────────────────────────────────────────
+function ScoreHero({ mode, humanScore, aiScore, hGrade, aGrade, synergyBonus, userWon, t }) {
+  const borderColor = t.is ? 'border-green-800' : 'border-game-cyan/40'
+
+  // SOLO: single centred score
+  if (mode === 'solo') {
+    return (
+      <div className={`${t.card} p-6 text-center border ${borderColor}`}>
+        <span className="stat-label block mb-3">{t.is ? 'your score' : 'YOUR SCORE'}</span>
+        <div className="flex items-end justify-center gap-3 mb-2">
+          <span className={`font-display font-bold text-6xl ${hGrade.color} tabular-nums`}>
+            {humanScore.toLocaleString()}
+          </span>
+          <GradeBadge grade={hGrade} />
+        </div>
+        <p className="font-mono text-xs text-game-muted">{hGrade.label}</p>
+      </div>
+    )
+  }
+
+  // CO-PILOT: human score + AI score + optional synergy bonus
+  if (mode === 'copilot') {
+    const totalScore = humanScore + synergyBonus
+    return (
+      <div className={`${t.card} p-5 border ${borderColor}`}>
+        <span className="stat-label block mb-4">{t.is ? 'collaboration scores' : 'COLLABORATION SCORES'}</span>
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="text-center">
+            <span className="stat-label block mb-1">{t.is ? 'you' : 'YOU'}</span>
+            <div className="flex items-end justify-center gap-2">
+              <span className={`font-display font-bold text-4xl ${hGrade.color} tabular-nums`}>
+                {humanScore.toLocaleString()}
+              </span>
+              <GradeBadge grade={hGrade} small />
+            </div>
+          </div>
+          <div className="text-center">
+            <span className="stat-label block mb-1">{t.is ? 'AI assist' : 'AI ASSIST'}</span>
+            <div className="flex items-end justify-center gap-2">
+              <span className={`font-display font-bold text-4xl ${aGrade.color} tabular-nums`}>
+                {aiScore.toLocaleString()}
+              </span>
+              <GradeBadge grade={aGrade} small />
+            </div>
+          </div>
+        </div>
+        {synergyBonus > 0 && (
+          <div className={`mt-2 p-3 rounded border ${t.success.border} ${t.success.bg} text-center`}>
+            <span className="font-mono text-xs text-game-green font-bold">
+              ⚡ {t.is ? 'Synergy Bonus' : 'SYNERGY BONUS'} +{synergyBonus.toLocaleString()}
+            </span>
+            <p className="font-mono text-xs text-game-muted mt-0.5">
+              {t.is ? 'You beat the AI by over 10%' : 'YOU BEAT THE AI BY OVER 10%'}
+            </p>
+          </div>
+        )}
+        {synergyBonus > 0 && (
+          <div className="mt-3 text-center">
+            <span className="stat-label block mb-1">{t.is ? 'total score' : 'TOTAL SCORE'}</span>
+            <span className={`font-display font-bold text-5xl ${hGrade.color} tabular-nums`}>
+              {totalScore.toLocaleString()}
+            </span>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // VS AI: side-by-side duel
+  return (
+    <div className={`${t.card} p-5 border ${borderColor}`}>
+      <span className="stat-label block mb-4 text-center">{t.is ? 'score duel' : 'SCORE DUEL'}</span>
+      <div className="grid grid-cols-2 gap-0">
+        {/* Human side */}
+        <div className={`text-center p-4 rounded-l-lg border-r border-game-border
+          ${userWon ? (t.is ? 'bg-green-900/20' : 'bg-game-cyan/5') : ''}`}>
+          <span className="stat-label block mb-1">{t.is ? 'you' : 'YOU'}</span>
+          <div className="flex items-end justify-center gap-2 mb-1">
+            <span className={`font-display font-bold text-4xl ${hGrade.color} tabular-nums`}>
+              {humanScore.toLocaleString()}
+            </span>
+          </div>
+          <GradeBadge grade={hGrade} centered />
+          {userWon && (
+            <span className="font-mono text-xs text-game-green font-bold block mt-2">
+              🏆 {t.is ? 'Winner' : 'WINNER'}
+            </span>
+          )}
+        </div>
+        {/* AI side */}
+        <div className={`text-center p-4 rounded-r-lg
+          ${!userWon ? (t.is ? 'bg-amber-900/20' : 'bg-game-amber/5') : ''}`}>
+          <span className="stat-label block mb-1">{t.is ? 'AI' : 'AI'}</span>
+          <div className="flex items-end justify-center gap-2 mb-1">
+            <span className={`font-display font-bold text-4xl ${aGrade.color} tabular-nums`}>
+              {aiScore.toLocaleString()}
+            </span>
+          </div>
+          <GradeBadge grade={aGrade} centered />
+          {!userWon && (
+            <span className={`font-mono text-xs ${t.secondary.text} font-bold block mt-2`}>
+              🤖 {t.is ? 'Winner' : 'WINNER'}
+            </span>
+          )}
+        </div>
+      </div>
+      {/* Score gap bar */}
+      <ScoreGapBar humanScore={humanScore} aiScore={aiScore} t={t} />
+    </div>
+  )
+}
+
+// ── Score gap visualiser (VS mode) ────────────────────────────────────────
+function ScoreGapBar({ humanScore, aiScore, t }) {
+  const total   = humanScore + aiScore || 1
+  const hPct    = Math.round((humanScore / total) * 100)
+  const diff    = Math.abs(humanScore - aiScore)
+  const winner  = humanScore >= aiScore ? 'you' : 'AI'
+
+  return (
+    <div className="mt-4">
+      <div className="flex justify-between font-mono text-xs text-game-muted mb-1">
+        <span>{t.is ? 'you' : 'YOU'}</span>
+        <span className="text-game-text font-bold">
+          {diff > 0
+            ? `${winner === 'you'
+                ? (t.is ? 'You lead by ' : 'YOU LEAD BY ')
+                : (t.is ? 'AI leads by ' : 'AI LEADS BY ')}${diff.toLocaleString()}`
+            : (t.is ? 'Tied!' : 'TIED!')}
+        </span>
+        <span>{t.is ? 'AI' : 'AI'}</span>
+      </div>
+      <div className="h-2 rounded-full overflow-hidden flex bg-game-border">
+        <div
+          className={`h-full transition-all duration-700 ${t.is ? 'bg-green-600' : 'bg-game-cyan'}`}
+          style={{ width: `${hPct}%` }}
+        />
+        <div
+          className={`h-full transition-all duration-700 ${t.is ? 'bg-amber-700' : 'bg-game-amber'}`}
+          style={{ width: `${100 - hPct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ── Grade badge ───────────────────────────────────────────────────────────
+function GradeBadge({ grade, small = false, centered = false }) {
+  const sizeCls  = small ? 'text-lg w-8 h-8' : 'text-2xl w-10 h-10'
+  const alignCls = centered ? 'mx-auto' : ''
+  return (
+    <span className={`
+      ${sizeCls} ${alignCls} ${grade.color}
+      font-display font-bold rounded border border-current
+      inline-flex items-center justify-center opacity-90
+    `}>
+      {grade.grade}
+    </span>
+  )
+}
+
+// ── Reusable stat card ────────────────────────────────────────────────────
 function ScoreCard({ label, value, color }) {
   return (
     <div className="bg-game-surface border border-game-border rounded-lg p-4">

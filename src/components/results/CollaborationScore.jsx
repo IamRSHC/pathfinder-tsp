@@ -4,7 +4,7 @@ import { useAiStore }   from '../../stores/aiStore'
 import { useTheme }     from '../../hooks/useTheme'
 
 export default function CollaborationScore() {
-  const { humanEdges, aiEdges, moveHistory } = useGameStore()
+  const { humanEdges, aiEdges, moveHistory, humanScore, aiScore, mode } = useGameStore()
   const { overrideCount } = useAiStore()
   const t = useTheme()
 
@@ -12,7 +12,6 @@ export default function CollaborationScore() {
   const aiCount    = aiEdges.length
   const total      = humanCount + aiCount || 1
 
-  // Pie colours pull from CSS variable values so they shift with theme
   const humanColor = t.is ? '#2D6A4F' : '#00e5ff'
   const aiColor    = t.is ? '#B5838D' : '#ffab00'
 
@@ -24,6 +23,9 @@ export default function CollaborationScore() {
   const conflicts = overrideCount
   const handoffs  = moveHistory.filter(m => m.type === 'ai').length
   const humanPct  = Math.round((humanCount / total) * 100)
+
+  // Score delta for co-pilot mode
+  const scoreDelta = humanScore - aiScore
 
   return (
     <div className={`${t.card} p-5`}>
@@ -51,6 +53,17 @@ export default function CollaborationScore() {
           <Stat label={t.is ? 'AI contribution'    : 'AI CONTRIBUTION'}    value={`${100-humanPct}%`} color={t.secondary.text} t={t} />
           <Stat label={t.is ? 'Overrides'          : 'OVERRIDES'}          value={conflicts}          color="text-game-red"    t={t} />
           <Stat label={t.is ? 'Handoffs'           : 'HANDOFFS'}           value={handoffs}           color="text-game-green"  t={t} />
+          {/* Score delta in co-pilot and vs modes */}
+          {(mode === 'copilot' || mode === 'vs') && humanScore > 0 && (
+            <Stat
+              label={t.is ? 'Score vs AI' : 'SCORE VS AI'}
+              value={scoreDelta >= 0
+                ? `+${scoreDelta.toLocaleString()}`
+                : scoreDelta.toLocaleString()}
+              color={scoreDelta >= 0 ? 'text-game-green' : 'text-game-red'}
+              t={t}
+            />
+          )}
         </div>
       </div>
 
