@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate }       from 'react-router-dom'
 import { gsap }              from 'gsap'
 import ModeCard              from '../components/ui/ModeCard'
@@ -16,7 +16,15 @@ export default function LandingScreen() {
   const navigate    = useNavigate()
   const heroRef     = useRef(null)
   const bgCanvasRef = useRef(null)
-  const t           = useTheme()
+  const leftPanelRef  = useRef(null)
+  const rightPanelRef = useRef(null)
+  const centerRef     = useRef(null)
+  const t = useTheme()
+
+  // Track which cards the user has visited
+  const [visitedCards, setVisitedCards] = useState(new Set([0]))
+  const [sidePanelsShown, setSidePanelsShown] = useState(false)
+  const sidePanelsShownRef = useRef(false)
 
   const {
     mode, difficulty, nodeSource, customRaw, standardSize,
@@ -98,6 +106,50 @@ export default function LandingScreen() {
     }
   }, [t.is])
 
+  // ── Handle card visit — track all 3 visited, then expand panels ──────────
+  const handleCardVisit = useCallback((index) => {
+    setVisitedCards(prev => {
+      const next = new Set(prev)
+      next.add(index)
+      if (next.size === 3 && !sidePanelsShownRef.current) {
+        // Only animate on tablet/desktop
+        const isWide = window.innerWidth >= 768
+        if (isWide) {
+          sidePanelsShownRef.current = true
+          setSidePanelsShown(true)
+
+          // Small delay so state flush + render happens first
+          setTimeout(() => {
+            const tl = gsap.timeline()
+            if (leftPanelRef.current) {
+              gsap.set(leftPanelRef.current, { x: -80, opacity: 0, display: 'flex' })
+              tl.to(leftPanelRef.current, {
+                x: 0, opacity: 1,
+                duration: 0.65,
+                ease: 'power3.out',
+              }, 0)
+            }
+            if (rightPanelRef.current) {
+              gsap.set(rightPanelRef.current, { x: 80, opacity: 0, display: 'flex' })
+              tl.to(rightPanelRef.current, {
+                x: 0, opacity: 1,
+                duration: 0.65,
+                ease: 'power3.out',
+              }, 0.08)
+            }
+            if (centerRef.current) {
+              tl.to(centerRef.current, {
+                duration: 0.55,
+                ease: 'power2.out',
+              }, 0)
+            }
+          }, 60)
+        }
+      }
+      return next
+    })
+  }, [])
+
   // ── Validation before starting ──────────────────────────────────────────
   const canStart = () => {
     if (nodeSource === 'custom') {
@@ -112,6 +164,64 @@ export default function LandingScreen() {
     resetGame()
     resetAi()
     navigate('/arena')
+  }
+
+  // ── Shared style helpers ─────────────────────────────────────────────────
+  const sectionLabel = {
+    fontFamily:    'var(--font-mono)',
+    fontSize:      '0.6rem',
+    letterSpacing: t.is ? '0.08em' : '0.15em',
+    textTransform: 'uppercase',
+    color:         'var(--color-primary)',
+    opacity:       0.85,
+    marginBottom:  '0.6rem',
+    display:       'block',
+  }
+
+  const dividerStyle = {
+    height:     '1px',
+    background: 'var(--color-border)',
+    opacity:    t.is ? 0.7 : 0.5,
+    margin:     '0.75rem 0',
+  }
+
+  const panelText = {
+    fontFamily:  'var(--font-mono)',
+    fontSize:    '0.7rem',
+    lineHeight:  1.8,
+    color:       'var(--color-muted)',
+  }
+
+  const badgeStyle = {
+    display:       'inline-block',
+    fontFamily:    'var(--font-mono)',
+    fontSize:      '0.58rem',
+    padding:       '0.2rem 0.55rem',
+    borderRadius:  '999px',
+    border:        `1px solid var(--color-primary)`,
+    color:         'var(--color-primary)',
+    background:    t.is ? 'rgba(45,106,79,0.07)' : 'rgba(0,229,255,0.06)',
+    letterSpacing: t.is ? '0.05em' : '0.12em',
+    textTransform: 'uppercase',
+  }
+
+  const tagStyle = {
+    display:       'inline-block',
+    fontFamily:    'var(--font-mono)',
+    fontSize:      '0.56rem',
+    padding:       '0.15rem 0.45rem',
+    borderRadius:  '0.25rem',
+    border:        `1px solid var(--color-border)`,
+    color:         'var(--color-muted)',
+    background:    t.is ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.04)',
+    letterSpacing: '0.05em',
+    marginRight:   '0.3rem',
+    marginBottom:  '0.3rem',
+  }
+
+  const highlightText = {
+    color:      'var(--color-primary)',
+    fontWeight: 600,
   }
 
   return (
@@ -138,200 +248,366 @@ export default function LandingScreen() {
       <div className="relative z-10 flex flex-col" style={{ flex: '1 1 0', minHeight: 0 }}>
         <Navbar />
 
-        {/* ── Hero ── */}
+        {/* ── Main layout: side-panels + center ── */}
         <div
-          ref={heroRef}
-          className="flex flex-col items-center justify-center pt-3 pb-2 px-4 text-center"
+          style={{
+            flex:           '1 1 0',
+            minHeight:      0,
+            display:        'flex',
+            alignItems:     'center',
+            justifyContent: 'center',
+            position:       'relative',
+            overflow:       'hidden',
+          }}
         >
-          <div className="mb-3">
-            <span
-              className="text-xs px-3 py-1 rounded"
-              style={{
-                fontFamily:    'var(--font-mono)',
-                color:         'var(--color-primary)',
-                border:        '1px solid var(--color-primary)',
-                background:    t.is ? 'rgba(45,106,79,0.06)' : 'rgba(0,229,255,0.05)',
-                letterSpacing: t.is ? '0.05em' : '0.12em',
-                opacity:       0.9,
-              }}
-            >
-              {t.is ? 'TSP · Traveling Salesman Problem' : 'TSP // TRAVELING SALESMAN PROBLEM'}
-            </span>
-          </div>
 
-          <h1
-            className="font-bold leading-none mb-3"
+          {/* ══ LEFT PANEL — only visible on md+ after all 3 cards visited ══ */}
+          <div
+            ref={leftPanelRef}
+            className="landing-side-panel landing-left-panel"
             style={{
-              fontFamily:    'var(--font-display)',
-              fontSize:      'clamp(2.6rem, 8vw, 5.5rem)',
-              letterSpacing: t.is ? '-0.02em' : '-0.01em',
-              color:         t.is ? 'var(--color-text)' : '#ffffff',
+              display:        sidePanelsShown ? 'flex' : 'none',
+              flexDirection:  'column',
+              justifyContent: 'center',
+              width:          '280px',
+              flexShrink:     0,
+              padding:        '1.5rem 1.25rem 1.5rem 1.5rem',
+              maxHeight:      '100%',
+              overflowY:      'hidden',
+              opacity:        0, // GSAP will animate this in
             }}
           >
-            {t.is ? 'Path' : 'PATH'}
-            <span className={t.primary.glow} style={{ color: 'var(--color-primary)' }}>
-              {t.is ? 'finder' : 'FINDER'}
-            </span>
-          </h1>
+            <span style={sectionLabel}>WHY THIS EXISTS</span>
+            <div style={dividerStyle} />
 
-          <p className="text-base sm:text-xl max-w-lg leading-relaxed"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}>
-            Can you outthink a machine?
-          </p>
-          <p className="text-xs mt-1 max-w-md"
-            style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-muted)', opacity: 0.6 }}>
-            Neither human nor AI solves it alone. The collaboration is the discovery.
-          </p>
-        </div>
+            <p style={{ ...panelText, marginBottom: '0.75rem' }}>
+              NP-hard problems don't have a fast exact solution. Not because nobody's tried — because no algorithm
+              scales fast enough as the problem grows.
+            </p>
 
-        {/* ── Card deck ── */}
-        <div
-          className="flex-1 min-h-0 px-3 sm:px-6 lg:px-8 pb-3 max-w-2xl mx-auto w-full"
-          style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', overflowY: 'auto' }}
-        >
-          <CardDeck
-            cards={[
-              {
-                id: 'mode',
-                labelC: 'MODE',
-                labelS: 'Mode',
-                content: (
-                  <div className="h-full flex flex-col gap-2.5">
-                    <span className="stat-label block flex-shrink-0">
-                      {t.is ? 'select mode' : 'SELECT MODE'}
-                    </span>
-                    <div className="flex-1 min-h-0 flex flex-col gap-2.5">
-                      {['solo', 'copilot', 'vs'].map(m => (
-                        <ModeCard key={m} mode={m} selected={mode === m} onClick={setMode} fill />
-                      ))}
-                    </div>
-                  </div>
-                ),
-              },
-              {
-                id: 'config',
-                labelC: 'CONFIG',
-                labelS: 'Config',
-                content: (
-                  <div className="h-full flex flex-col justify-center space-y-3">
-                    {/* Section label */}
-                    <div className="flex items-center gap-2">
-                      <span className="stat-label">
-                        {t.is ? 'game configuration' : 'GAME CONFIGURATION'}
-                      </span>
-                      <div
-                        style={{
-                          flex: 1, height: '1px',
-                          background: 'var(--color-border)',
-                          opacity: t.is ? 0.6 : 1,
-                          minWidth: '20px',
-                        }}
-                      />
-                    </div>
+            <p style={{ ...panelText, marginBottom: '0.75rem' }}>
+              The Traveling Salesman Problem is the classic case. <span style={highlightText}>10 cities, trivial.</span>{' '}
+              <span style={highlightText}>50 cities, computers struggle.</span> This isn't a CS101 exercise — it's
+              the same math behind drug discovery, chip transistor placement, and delivery logistics.
+            </p>
 
-                    {/* Node source 3-way pill */}
-                    <NodeSourcePicker />
+            <p style={{ ...panelText, marginBottom: '0.75rem' }}>
+              For decades, two camps worked this separately: pure algorithms (fast, blind) and human intuition
+              (slow, surprisingly sharp at seeing shortcuts machines miss).
+            </p>
 
-                    {/* Conditional: Difficulty dial for RANDOM, nothing extra for STANDARD/CUSTOM */}
-                    {nodeSource === 'random' && (
-                      <>
-                        <div
-                          style={{ height: '1px', background: 'var(--color-border)', opacity: 0.5 }}
-                        />
-                        <DifficultyDial value={difficulty} onChange={setDifficulty} />
-                      </>
-                    )}
+            <div style={dividerStyle} />
 
-                    {/* Custom: validation status summary */}
-                    {nodeSource === 'custom' && customRaw.trim() && (() => {
-                      const { nodes: parsed, errors } = parseCustomNodes(customRaw)
-                      const ok = parsed.length >= 3
-                      return (
-                        <div
+            <p style={{ ...panelText, fontStyle: 'italic', marginBottom: '1rem', color: 'var(--color-text)', opacity: 0.8 }}>
+              "Neither human nor AI solves it alone. The collaboration is the discovery."
+            </p>
+
+
+          </div>
+
+          {/* ══ CENTER — always visible ══ */}
+          <div
+            ref={centerRef}
+            style={{
+              display:        'flex',
+              flexDirection:  'column',
+              alignItems:     'center',
+              flex:           '0 0 auto',
+              width:          'min(100%, 420px)',
+              height:         '100%',
+              justifyContent: 'center',
+              padding:        '0.5rem 0.75rem',
+            }}
+          >
+            {/* ── Hero (center-only) ── */}
+            <div
+              ref={heroRef}
+              style={{
+                textAlign:      'center',
+                marginBottom:   '0.75rem',
+                flexShrink:     0,
+              }}
+            >
+
+              <h1
+                className="font-bold leading-none"
+                style={{
+                  fontFamily:    'var(--font-display)',
+                  fontSize:      'clamp(2.4rem, 7vw, 5rem)',
+                  letterSpacing: t.is ? '-0.02em' : '-0.01em',
+                  color:         t.is ? 'var(--color-text)' : '#ffffff',
+                  marginBottom:  '0.35rem',
+                }}
+              >
+                {t.is ? 'Path' : 'PATH'}
+                <span className={t.primary.glow} style={{ color: 'var(--color-primary)' }}>
+                  {t.is ? 'finder' : 'FINDER'}
+                </span>
+              </h1>
+
+              <p className="text-base sm:text-lg leading-relaxed"
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-muted)' }}>
+                Can you outthink a machine?
+              </p>
+
+            </div>
+
+            {/* ── Card deck ── */}
+            <div style={{ flexShrink: 0, width: '100%', display: 'flex', justifyContent: 'center' }}>
+              <CardDeck
+                onCardVisit={handleCardVisit}
+                cards={[
+                  {
+                    id: 'mode',
+                    labelC: 'MODE',
+                    labelS: 'Mode',
+                    content: (
+                      <div className="h-full flex flex-col gap-2.5">
+                        <span className="stat-label block flex-shrink-0">
+                          {t.is ? 'select mode' : 'SELECT MODE'}
+                        </span>
+                        <div className="flex-1 min-h-0 flex flex-col gap-2.5">
+                          {['solo', 'copilot', 'vs'].map(m => (
+                            <ModeCard key={m} mode={m} selected={mode === m} onClick={setMode} fill />
+                          ))}
+                        </div>
+                      </div>
+                    ),
+                  },
+                  {
+                    id: 'config',
+                    labelC: 'CONFIG',
+                    labelS: 'Config',
+                    content: (
+                      <div className="h-full flex flex-col justify-center space-y-3">
+                        {/* Section label */}
+                        <div className="flex items-center gap-2">
+                          <span className="stat-label">
+                            {t.is ? 'game configuration' : 'GAME CONFIGURATION'}
+                          </span>
+                          <div
+                            style={{
+                              flex: 1, height: '1px',
+                              background: 'var(--color-border)',
+                              opacity: t.is ? 0.6 : 1,
+                              minWidth: '20px',
+                            }}
+                          />
+                        </div>
+
+                        {/* Node source 3-way pill */}
+                        <NodeSourcePicker />
+
+                        {/* Conditional: Difficulty dial for RANDOM */}
+                        {nodeSource === 'random' && (
+                          <>
+                            <div
+                              style={{ height: '1px', background: 'var(--color-border)', opacity: 0.5 }}
+                            />
+                            <DifficultyDial value={difficulty} onChange={setDifficulty} />
+                          </>
+                        )}
+
+                        {/* Custom: validation status summary */}
+                        {nodeSource === 'custom' && customRaw.trim() && (() => {
+                          const { nodes: parsed, errors } = parseCustomNodes(customRaw)
+                          const ok = parsed.length >= 3
+                          return (
+                            <div
+                              style={{
+                                padding:      '0.4rem 0.65rem',
+                                borderRadius: '0.375rem',
+                                border:       `1px solid ${ok ? 'var(--color-primary)' : '#ff555544'}`,
+                                background:   ok
+                                  ? (t.is ? 'rgba(45,106,79,0.06)' : 'rgba(0,229,255,0.04)')
+                                  : (t.is ? '#FFF5F5' : '#1a0808'),
+                                fontFamily:   'var(--font-mono)',
+                                fontSize:     '0.62rem',
+                                color:        ok ? 'var(--color-primary)' : '#ff5555',
+                              }}
+                            >
+                              {ok
+                                ? `✓ ${parsed.length} nodes ready for routing`
+                                : `⚠ ${errors.length ? errors[0] : 'Need at least 3 valid coordinates'}`}
+                            </div>
+                          )
+                        })()}
+
+                        {/* Start button */}
+                        <button
+                          onClick={handleStart}
+                          disabled={!canStart()}
+                          className="w-full py-3 font-bold text-lg active:scale-95 transition-all duration-200
+                            disabled:opacity-40 disabled:cursor-not-allowed"
                           style={{
-                            padding:      '0.4rem 0.65rem',
-                            borderRadius: '0.375rem',
-                            border:       `1px solid ${ok ? 'var(--color-primary)' : '#ff555544'}`,
-                            background:   ok
-                              ? (t.is ? 'rgba(45,106,79,0.06)' : 'rgba(0,229,255,0.04)')
-                              : (t.is ? '#FFF5F5' : '#1a0808'),
-                            fontFamily:   'var(--font-mono)',
-                            fontSize:     '0.62rem',
-                            color:        ok ? 'var(--color-primary)' : '#ff5555',
+                            fontFamily:    'var(--font-display)',
+                            letterSpacing: t.is ? '0.04em' : '0.15em',
+                            borderRadius:  '0.5rem',
+                            background:    'var(--color-primary)',
+                            color:         t.is ? '#FFFFFF' : '#090d14',
+                            boxShadow:     t.is
+                              ? '0 2px 12px rgba(45,106,79,0.25)'
+                              : '0 0 30px rgba(0,229,255,0.2)',
+                            border:  'none',
+                            cursor:  canStart() ? 'pointer' : 'not-allowed',
                           }}
                         >
-                          {ok
-                            ? `✓ ${parsed.length} nodes ready for routing`
-                            : `⚠ ${errors.length ? errors[0] : 'Need at least 3 valid coordinates'}`}
-                        </div>
-                      )
-                    })()}
-
-                    {/* Start button — lives on this card only */}
-                    <button
-                      onClick={handleStart}
-                      disabled={!canStart()}
-                      className="w-full py-3 font-bold text-lg active:scale-95 transition-all duration-200
-                        disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={{
-                        fontFamily:    'var(--font-display)',
-                        letterSpacing: t.is ? '0.04em' : '0.15em',
-                        borderRadius:  '0.5rem',
-                        background:    'var(--color-primary)',
-                        color:         t.is ? '#FFFFFF' : '#090d14',
-                        boxShadow:     t.is
-                          ? '0 2px 12px rgba(45,106,79,0.25)'
-                          : '0 0 30px rgba(0,229,255,0.2)',
-                        border:  'none',
-                        cursor:  canStart() ? 'pointer' : 'not-allowed',
-                      }}
-                    >
-                      {t.is ? 'Begin Routing' : 'INITIATE ROUTING'}
-                    </button>
-                  </div>
-                ),
-              },
-              {
-                id: 'leaderboard',
-                labelC: 'LEADERBOARD',
-                labelS: 'Leaderboard',
-                content: (
-                  <div className="h-full flex flex-col justify-center space-y-3">
-                    <LeaderboardTeaser />
-
-                    <div>
-                      <span className="stat-label block mb-3">
-                        {t.is ? 'real-world applications' : 'REAL-WORLD APPLICATIONS'}
-                      </span>
-                      <div className="space-y-2">
-                        {[
-                          { icon: '💊', label: 'Drug Discovery',     cyberCls: 'text-game-green',  sereneColor: '#3A7D5B' },
-                          { icon: '🔬', label: 'Genome Sequencing',  cyberCls: 'text-game-cyan',   sereneColor: '#2D6A4F' },
-                          { icon: '💻', label: 'SoC Routing',        cyberCls: 'text-game-amber',  sereneColor: '#B5838D' },
-                          { icon: '🚚', label: 'Logistics Planning', cyberCls: 'text-game-purple', sereneColor: '#6D6875' },
-                        ].map(a => (
-                          <div
-                            key={a.label}
-                            className="flex items-center gap-2 text-xs"
-                            style={{ fontFamily: 'var(--font-mono)' }}
-                          >
-                            <span>{a.icon}</span>
-                            <span
-                              style={{ color: t.is ? a.sereneColor : undefined }}
-                              className={t.is ? '' : a.cyberCls}
-                            >
-                              {a.label}
-                            </span>
-                          </div>
-                        ))}
+                          {t.is ? 'Begin Routing' : 'INITIATE ROUTING'}
+                        </button>
                       </div>
-                    </div>
-                  </div>
-                ),
-              },
-            ]}
-          />
-        </div>
+                    ),
+                  },
+                  {
+                    id: 'leaderboard',
+                    labelC: 'LEADERBOARD',
+                    labelS: 'Leaderboard',
+                    content: (
+                      <div className="h-full flex flex-col justify-center space-y-3">
+                        <LeaderboardTeaser />
+
+                        <div>
+                          <span className="stat-label block mb-3">
+                            {t.is ? 'real-world applications' : 'REAL-WORLD APPLICATIONS'}
+                          </span>
+                          <div className="space-y-2">
+                            {[
+                              { icon: '💊', label: 'Drug Discovery',     cyberCls: 'text-game-green',  sereneColor: '#3A7D5B' },
+                              { icon: '🔬', label: 'Genome Sequencing',  cyberCls: 'text-game-cyan',   sereneColor: '#2D6A4F' },
+                              { icon: '💻', label: 'SoC Routing',        cyberCls: 'text-game-amber',  sereneColor: '#B5838D' },
+                              { icon: '🚚', label: 'Logistics Planning', cyberCls: 'text-game-purple', sereneColor: '#6D6875' },
+                            ].map(a => (
+                              <div
+                                key={a.label}
+                                className="flex items-center gap-2 text-xs"
+                                style={{ fontFamily: 'var(--font-mono)' }}
+                              >
+                                <span>{a.icon}</span>
+                                <span
+                                  style={{ color: t.is ? a.sereneColor : undefined }}
+                                  className={t.is ? '' : a.cyberCls}
+                                >
+                                  {a.label}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+            </div>
+          </div>
+
+          {/* ══ RIGHT PANEL — only visible on md+ after all 3 cards visited ══ */}
+          <div
+            ref={rightPanelRef}
+            className="landing-side-panel landing-right-panel"
+            style={{
+              display:        sidePanelsShown ? 'flex' : 'none',
+              flexDirection:  'column',
+              justifyContent: 'center',
+              width:          '280px',
+              flexShrink:     0,
+              padding:        '1.5rem 1.5rem 1.5rem 1.25rem',
+              maxHeight:      '100%',
+              overflowY:      'auto',
+              opacity:        0, // GSAP will animate this in
+            }}
+          >
+            <span style={sectionLabel}>ABOUT THE DEV</span>
+            <div style={dividerStyle} />
+
+            {/* Name & bio */}
+            <div style={{ marginBottom: '0.9rem' }}>
+              <p style={{
+                fontFamily:  'var(--font-display)',
+                fontSize:    '1.05rem',
+                fontWeight:  700,
+                color:       'var(--color-text)',
+                marginBottom:'0.15rem',
+                letterSpacing: t.is ? '-0.01em' : '0.02em',
+              }}>
+                R S Hareecharan
+              </p>
+              <p style={{ ...panelText, fontSize: '0.65rem', opacity: 0.75 }}>
+                B.Tech CSE, AI &amp; ML · SRM IST, Tiruchirappalli
+              </p>
+            </div>
+
+            <p style={{ ...panelText, marginBottom: '0.75rem' }}>
+              Built during <span style={highlightText}>Summer Internship 2026</span> at NIT Tiruchirappalli,
+              under the guidance of <span style={highlightText}>Dr. Sathyanarayanan S</span>, Dept. of CSE.
+            </p>
+
+            <div style={dividerStyle} />
+
+            {/* Stack */}
+            <span style={{ ...sectionLabel, marginBottom: '0.5rem' }}>STACK</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+              {['React', 'Vite', 'GSAP', 'Zustand', 'Web Workers', 'NN + 2-Opt', 'ACO'].map(s => (
+                <span key={s} style={tagStyle}>{s}</span>
+              ))}
+            </div>
+
+            <div style={dividerStyle} />
+
+            {/* Status */}
+            <div style={{ marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
+                <span style={{
+                  width: '6px', height: '6px', borderRadius: '50%',
+                  background: '#00e676', flexShrink: 0,
+                  boxShadow: t.is ? 'none' : '0 0 6px #00e676',
+                }} />
+                <span style={{ ...sectionLabel, margin: 0, color: '#00e676' }}>DEPLOYED · VERCEL</span>
+              </div>
+              <p style={{ ...panelText, fontSize: '0.65rem' }}>
+                Active development — bugs being squashed daily.
+                Research prototype first, polished product second.
+              </p>
+            </div>
+
+            <div style={dividerStyle} />
+
+            {/* Links */}
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {[
+                { label: 'GitHub', href: '#' },
+                { label: 'Contact', href: '#' },
+                { label: 'LinkedIn', href: '#' },
+              ].map(link => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  style={{
+                    fontFamily:     'var(--font-mono)',
+                    fontSize:       '0.6rem',
+                    letterSpacing:  '0.06em',
+                    textTransform:  'uppercase',
+                    color:          'var(--color-primary)',
+                    textDecoration: 'none',
+                    padding:        '0.2rem 0.5rem',
+                    border:         '1px solid var(--color-primary)',
+                    borderRadius:   '0.25rem',
+                    background:     t.is ? 'rgba(45,106,79,0.06)' : 'rgba(0,229,255,0.05)',
+                    transition:     'background 0.2s ease',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = t.is ? 'rgba(45,106,79,0.14)' : 'rgba(0,229,255,0.12)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = t.is ? 'rgba(45,106,79,0.06)' : 'rgba(0,229,255,0.05)'
+                  }}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+          </div>
+
+        </div>{/* end main layout */}
       </div>
     </div>
   )

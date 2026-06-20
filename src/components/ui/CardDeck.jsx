@@ -12,9 +12,10 @@ const SWIPE_THRESHOLD = 70  // px of drag before it commits to navigation
  * Navigate via a single pill (arrows folded in) or drag/swipe.
  *
  * props:
- *   cards: [{ id, labelC, labelS, content }]   exactly 3 entries
+ *   cards:        [{ id, labelC, labelS, content }]   exactly 3 entries
+ *   onCardVisit:  (index: number) => void   called each time a card becomes active
  */
-export default function CardDeck({ cards }) {
+export default function CardDeck({ cards, onCardVisit }) {
   const t = useTheme()
   const n = cards.length
 
@@ -22,6 +23,11 @@ export default function CardDeck({ cards }) {
   const cardRefs   = useRef([])
   const dragState  = useRef({ pending: false, dragging: false, startX: 0, lastX: 0, pointerId: null })
   const animating  = useRef(false)
+
+  // notify parent of the initial card on mount
+  useEffect(() => {
+    onCardVisit?.(0)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── circular relative offset: -1 (left peek), 0 (active), 1 (right peek) ──
   const relOffset = (i, from = active) => {
@@ -52,6 +58,7 @@ export default function CardDeck({ cards }) {
     if (animating.current || nextActive === active) return
     animating.current = true
     setActive(nextActive)
+    onCardVisit?.(nextActive)
 
     cardRefs.current.forEach((el, i) => {
       if (!el) return
@@ -69,9 +76,6 @@ export default function CardDeck({ cards }) {
   const prev = () => goTo((active - 1 + n) % n)
 
   // ── drag / swipe handling on the active card ──────────────────────────────
-  // Pointer capture is deferred until real movement is detected, so a plain
-  // click/tap on a button inside the card (Mode tile, pill, etc.) is never
-  // hijacked — this is what was breaking selection on desktop.
   const onPointerDown = (e) => {
     if (animating.current) return
     dragState.current = {
@@ -147,55 +151,66 @@ export default function CardDeck({ cards }) {
       width: 'clamp(240px, 82vw, 360px)', margin: '0 auto',
     }}>
 
-      {/* ── Single pill: arrows folded in alongside the 3 tab labels ── */}
-      <div
-        style={{
-          position:     'relative',
-          display:      'flex',
-          alignItems:   'stretch',
-          height:       '36px',
-          borderRadius: '999px',
-          background:   pillBg,
-          border:       pillBorder,
-          boxShadow:    t.is ? 'none' : '0 0 8px rgba(0,229,255,0.2)',
-          overflow:     'hidden',
-          flexShrink:   0,
-        }}
-      >
+      {/* ── Pill row: arrows outside, pure pill inside ── */}
+      <div style={{
+        display:     'flex',
+        alignItems:  'center',
+        gap:         '0.5rem',
+        flexShrink:  0,
+      }}>
+        {/* Left arrow — outside the pill */}
         <button
           onClick={prev}
           aria-label="Previous card"
-          style={pillArrowStyle(t)}
+          style={outerArrowStyle(t)}
         >
           ‹
         </button>
 
-        {cards.map((c, i) => (
-          <button
-            key={c.id}
-            onClick={() => goTo(i)}
-            style={{
-              flex: 1, border: 'none', cursor: 'pointer',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.6rem',
-              fontWeight: 700,
-              letterSpacing: t.is ? '0.02em' : '0.06em',
-              textTransform: t.is ? 'none' : 'uppercase',
-              color: i === active ? (t.is ? '#FAFAF8' : '#090d14') : 'var(--color-muted)',
-              background: i === active
-                ? (t.is ? 'linear-gradient(135deg,#2D6A4F,#52B788)' : 'linear-gradient(135deg,#00b4d8,#00e5ff)')
-                : 'transparent',
-              transition: 'color 0.2s ease, background 0.2s ease',
-            }}
-          >
-            {t.is ? c.labelS : c.labelC}
-          </button>
-        ))}
+        {/* Pure pill — labels only, no arrows inside */}
+        <div
+          style={{
+            flex:         1,
+            display:      'flex',
+            alignItems:   'stretch',
+            height:       '36px',
+            borderRadius: '999px',
+            background:   pillBg,
+            border:       pillBorder,
+            boxShadow:    t.is ? 'none' : '0 0 8px rgba(0,229,255,0.2)',
+            overflow:     'hidden',
+          }}
+        >
+          {cards.map((c, i) => (
+            <button
+              key={c.id}
+              onClick={() => goTo(i)}
+              style={{
+                flex:          1,
+                border:        'none',
+                cursor:        'pointer',
+                fontFamily:    'var(--font-mono)',
+                fontSize:      '0.6rem',
+                fontWeight:    700,
+                letterSpacing: t.is ? '0.02em' : '0.06em',
+                textTransform: t.is ? 'none' : 'uppercase',
+                color:         i === active ? (t.is ? '#FAFAF8' : '#090d14') : 'var(--color-muted)',
+                background:    i === active
+                  ? (t.is ? 'linear-gradient(135deg,#2D6A4F,#52B788)' : 'linear-gradient(135deg,#00b4d8,#00e5ff)')
+                  : 'transparent',
+                transition:    'color 0.2s ease, background 0.2s ease',
+              }}
+            >
+              {t.is ? c.labelS : c.labelC}
+            </button>
+          ))}
+        </div>
 
+        {/* Right arrow — outside the pill */}
         <button
           onClick={next}
           aria-label="Next card"
-          style={pillArrowStyle(t)}
+          style={outerArrowStyle(t)}
         >
           ›
         </button>
@@ -267,16 +282,22 @@ export default function CardDeck({ cards }) {
   )
 }
 
-function pillArrowStyle(t) {
+function outerArrowStyle(t) {
   return {
-    flexShrink: 0,
-    width: '30px',
-    border: 'none',
-    background: 'transparent',
-    color: 'var(--color-primary)',
-    fontSize: '1.05rem',
-    lineHeight: 1,
-    cursor: 'pointer',
-    fontFamily: 'var(--font-display)',
+    flexShrink:   0,
+    width:        '28px',
+    height:       '28px',
+    display:      'flex',
+    alignItems:   'center',
+    justifyContent: 'center',
+    border:       `1px solid var(--color-border)`,
+    borderRadius: '999px',
+    background:   t.is ? 'rgba(45,106,79,0.06)' : 'rgba(0,229,255,0.04)',
+    color:        'var(--color-primary)',
+    fontSize:     '1.1rem',
+    lineHeight:   1,
+    cursor:       'pointer',
+    fontFamily:   'var(--font-display)',
+    transition:   'background 0.2s ease, border-color 0.2s ease',
   }
 }

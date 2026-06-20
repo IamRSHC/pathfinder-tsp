@@ -396,3 +396,47 @@ body {
 .view-toggle-pill * {
   transition: none !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LANDING — 3-COLUMN SIDE PANELS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Side panels: hidden on mobile, shown only on tablet/desktop by JS */
+.landing-side-panel {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+.landing-side-panel::-webkit-scrollbar {
+  width: 3px;
+}
+.landing-side-panel::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
+}
+
+/* On mobile: force side panels hidden regardless of JS state */
+@media (max-width: 767px) {
+  .landing-side-panel {
+    display: none !important;
+  }
+}
+
+/* On tablet/desktop: allow JS to control display */
+@media (min-width: 768px) {
+  .landing-side-panel {
+    /* display controlled by React state + GSAP */
+  }
+}
+
+/* TSP badge in center hero: hide on desktop when side panels are shown
+   (the left panel takes over the badge) */
+@media (min-width: 768px) {
+  .landing-badge-mobile-only {
+    display: none !important;
+  }
+}
+
+/* Ensure the pill is never clipped inside the card deck wrapper */
+.landing-card-deck-wrapper {
+  overflow: visible !important;
+}
