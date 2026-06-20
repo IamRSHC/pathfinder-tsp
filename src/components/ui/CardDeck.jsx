@@ -1,6 +1,9 @@
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react'
 import { gsap }     from 'gsap'
 import { useTheme } from '../../hooks/useTheme'
+
+const MIN_STAGE_HEIGHT = 320  // px floor so a thin card never looks cramped
+const BORDER_EXTRA     = 2    // outer card's top+bottom border width
 
 /**
  * CardDeck — a 3-card poker-style deck.
@@ -15,7 +18,10 @@ export default function CardDeck({ cards }) {
   const n = cards.length
 
   const [active, setActive] = useState(0)
-  const cardRefs   = useRef([])
+  const cardRefs    = useRef([])  // outer clipped card shells (animated slots)
+  const contentRefs = useRef([])  // inner natural-height content wrappers (measured)
+  const stageRef     = useRef(null)
+  const heightsRef    = useRef([0, 0, 0])
   const dragState  = useRef({ dragging: false, startX: 0, lastX: 0 })
   const animating  = useRef(false)
 
@@ -45,6 +51,45 @@ export default function CardDeck({ cards }) {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // ── fixed-size deck: measure every card's natural content height and lock
+  //    the stage to the tallest one. Navigating never resizes the deck —
+  //    only an actual content change (e.g. typing custom nodes) does. ───────
+  const applyStageHeight = useCallback((animate) => {
+    const max = Math.max(MIN_STAGE_HEIGHT, ...heightsRef.current)
+    const px  = Math.ceil(max) + BORDER_EXTRA
+    const el  = stageRef.current
+    if (!el) return
+    if (animate) {
+      gsap.to(el, { height: px, duration: 0.4, ease: 'power2.out' })
+    } else {
+      gsap.set(el, { height: px })
+    }
+  }, [])
+
+  useLayoutEffect(() => {
+    heightsRef.current = contentRefs.current.map(el => (el ? el.getBoundingClientRect().height : 0))
+    applyStageHeight(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const observer = new ResizeObserver(entries => {
+      let changed = false
+      entries.forEach(entry => {
+        const idx = contentRefs.current.indexOf(entry.target)
+        if (idx === -1) return
+        const h = entry.borderBoxSize?.[0]?.blockSize ?? entry.target.getBoundingClientRect().height
+        if (Math.abs(heightsRef.current[idx] - h) > 1) {
+          heightsRef.current[idx] = h
+          changed = true
+        }
+      })
+      if (changed) applyStageHeight(true)
+    })
+    contentRefs.current.forEach(el => el && observer.observe(el))
+    return () => observer.disconnect()
+  }, [applyStageHeight])
 
   const goTo = useCallback((nextActive, dragRelease = false) => {
     if (animating.current || nextActive === active) return
@@ -123,7 +168,7 @@ export default function CardDeck({ cards }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', height: '100%', minHeight: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
       {/* ── Tab labels + chevrons ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
@@ -174,12 +219,11 @@ export default function CardDeck({ cards }) {
         </button>
       </div>
 
-      {/* ── Deck stage ── */}
+      {/* ── Deck stage — height is locked to the tallest card's content, measured live ── */}
       <div
+        ref={stageRef}
         style={{
           position: 'relative',
-          flex: '1 1 0',
-          minHeight: 0,
           perspective: '1400px',
         }}
       >
@@ -200,15 +244,18 @@ export default function CardDeck({ cards }) {
               boxShadow: t.is
                 ? '0 8px 24px rgba(0,0,0,0.10), 0 1px 0 rgba(0,0,0,0.04)'
                 : '0 8px 30px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,229,255,0.05)',
-              padding: 'clamp(0.9rem, 2vw, 1.25rem)',
-              overflowY: 'auto',
-              WebkitOverflowScrolling: 'touch',
+              overflow: 'hidden',
               cursor: i === active ? 'grab' : 'default',
               touchAction: i === active ? 'pan-y' : 'auto',
               willChange: 'transform, opacity',
             }}
           >
-            {c.content}
+            <div
+              ref={el => (contentRefs.current[i] = el)}
+              style={{ padding: 'clamp(0.9rem, 2vw, 1.25rem)' }}
+            >
+              {c.content}
+            </div>
           </div>
         ))}
       </div>

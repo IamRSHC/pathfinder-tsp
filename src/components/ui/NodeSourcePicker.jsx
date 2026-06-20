@@ -190,7 +190,7 @@ export default function NodeSourcePicker() {
             value={customRaw}
             onChange={e => handleTextChange(e.target.value)}
             placeholder={'120,340\n250,80\n480,200\n...'}
-            rows={6}
+            rows={4}
             style={{
               width:         '100%',
               background:    surface,
@@ -200,9 +200,9 @@ export default function NodeSourcePicker() {
               fontFamily:    'var(--font-mono)',
               fontSize:      '0.7rem',
               padding:       '0.5rem 0.6rem',
-              resize:        'vertical',
+              resize:        'none',
               outline:       'none',
-              lineHeight:    1.7,
+              lineHeight:    1.6,
             }}
             onFocus={e => (e.target.style.borderColor = primary)}
             onBlur={e  => (e.target.style.borderColor = border)}

@@ -1,6 +1,6 @@
 import { useTheme } from '../../hooks/useTheme'
 
-export default function ModeCard({ mode, selected, onClick }) {
+export default function ModeCard({ mode, selected, onClick, dense = false }) {
   const t = useTheme()
 
   const config = {
@@ -50,6 +50,33 @@ export default function ModeCard({ mode, selected, onClick }) {
         : 'border-game-amber/40',
     },
   }[mode]
+
+  if (dense) {
+    return (
+      <button
+        onClick={() => onClick(mode)}
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border-2
+          bg-game-surface text-left w-full transition-all duration-200
+          ${selected ? config.selectedBorder : 'border-game-border'}
+          ${selected && t.is ? 'mode-card-selected' : ''}`}
+      >
+        <span className="text-xl flex-shrink-0">{config.icon}</span>
+        <span className="flex-1 min-w-0">
+          <span className={`block font-display font-bold text-sm ${config.color} ${t.is ? '' : 'tracking-wider'}`}>
+            {t.is ? config.labelS : config.labelC}
+          </span>
+          <span className="block font-mono text-[0.65rem] text-game-muted leading-snug truncate">
+            {config.desc}
+          </span>
+        </span>
+        {selected && (
+          <span className={`flex-shrink-0 text-xs font-bold ${config.color}`} aria-hidden="true">
+            ✓
+          </span>
+        )}
+      </button>
+    )
+  }
 
   return (
     <button

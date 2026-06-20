@@ -187,7 +187,7 @@ export default function LandingScreen() {
         {/* ── Card deck ── */}
         <div
           className="flex-1 min-h-0 px-3 sm:px-6 lg:px-8 pb-3 max-w-2xl mx-auto w-full"
-          style={{ display: 'flex', flexDirection: 'column' }}
+          style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', overflowY: 'auto' }}
         >
           <CardDeck
             cards={[
@@ -196,13 +196,13 @@ export default function LandingScreen() {
                 labelC: 'MODE',
                 labelS: 'Mode',
                 content: (
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     <span className="stat-label block">
                       {t.is ? 'select mode' : 'SELECT MODE'}
                     </span>
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="flex flex-col gap-2">
                       {['solo', 'copilot', 'vs'].map(m => (
-                        <ModeCard key={m} mode={m} selected={mode === m} onClick={setMode} />
+                        <ModeCard key={m} mode={m} selected={mode === m} onClick={setMode} dense />
                       ))}
                     </div>
                   </div>
@@ -213,7 +213,7 @@ export default function LandingScreen() {
                 labelC: 'CONFIG',
                 labelS: 'Config',
                 content: (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {/* Section label */}
                     <div className="flex items-center gap-2">
                       <span className="stat-label">
@@ -249,14 +249,14 @@ export default function LandingScreen() {
                       return (
                         <div
                           style={{
-                            padding:      '0.5rem 0.75rem',
+                            padding:      '0.4rem 0.65rem',
                             borderRadius: '0.375rem',
                             border:       `1px solid ${ok ? 'var(--color-primary)' : '#ff555544'}`,
                             background:   ok
                               ? (t.is ? 'rgba(45,106,79,0.06)' : 'rgba(0,229,255,0.04)')
                               : (t.is ? '#FFF5F5' : '#1a0808'),
                             fontFamily:   'var(--font-mono)',
-                            fontSize:     '0.65rem',
+                            fontSize:     '0.62rem',
                             color:        ok ? 'var(--color-primary)' : '#ff5555',
                           }}
                         >
@@ -271,7 +271,7 @@ export default function LandingScreen() {
                     <button
                       onClick={handleStart}
                       disabled={!canStart()}
-                      className="w-full py-4 font-bold text-xl active:scale-95 transition-all duration-200
+                      className="w-full py-3 font-bold text-lg active:scale-95 transition-all duration-200
                         disabled:opacity-40 disabled:cursor-not-allowed"
                       style={{
                         fontFamily:    'var(--font-display)',
