@@ -39,7 +39,7 @@ export function usePixiGame(containerRef) {
   const { nodes, humanEdges, aiEdges, gamePhase, startNode, difficulty,
           nodeSource, standardSize, customRaw,
           setNodes, addHumanEdge, setStartNode } = useGameStore()
-  const { suggestion, requestSuggestion } = useAiStore()
+  const { suggestion, requestSuggestion, pheromoneEdges, acoPhase } = useAiStore()
   const { theme, showNotification } = useUiStore()
   const C = THEME_COLORS[theme] || THEME_COLORS.cyber
 
@@ -60,6 +60,10 @@ export function usePixiGame(containerRef) {
     const edgesGfx = new PIXI.Graphics()
     app.stage.addChild(edgesGfx)
     edgesGfxRef.current = edgesGfx
+    // Pheromone overlay — rendered between edges and suggestion layers
+    const pheromoneGfx = new PIXI.Graphics()
+    pheromoneGfx.name = 'pheromone'
+    app.stage.addChild(pheromoneGfx)
     const sugGfx = new PIXI.Graphics()
     sugGfx.name = 'suggestion'
     app.stage.addChild(sugGfx)
@@ -193,6 +197,33 @@ export function usePixiGame(containerRef) {
       gfx.lineTo(nodes[to].x, nodes[to].y)
     })
   }, [humanEdges, aiEdges, nodes, theme])
+
+  // ── Pheromone overlay ─────────────────────────────────────────────────
+  // Drawn between edge layer and suggestion layer.
+  // Amber trails for cyber, dusty rose for serene — varying alpha by strength.
+  useEffect(() => {
+    const app = appRef.current
+    if (!app) return
+    const gfx = app.stage.getChildByName('pheromone')
+    if (!gfx) return
+    gfx.clear()
+    if (!nodes.length || !pheromoneEdges.length) return
+
+    const isCyber = theme !== 'serene'
+    // Base colour: amber for cyber, muted rose for serene
+    const color = isCyber ? 0xffab00 : 0xB5838D
+
+    for (const pe of pheromoneEdges) {
+      const a = nodes[pe.from], b = nodes[pe.to]
+      if (!a || !b) continue
+      // strength: 0.25–1.0 → alpha: 0.04–0.22
+      const alpha = 0.04 + pe.strength * 0.18
+      const width = 0.5 + pe.strength * (isCyber ? 2.5 : 1.5)
+      gfx.lineStyle(width, color, alpha)
+      gfx.moveTo(a.x, a.y)
+      gfx.lineTo(b.x, b.y)
+    }
+  }, [pheromoneEdges, nodes, theme])
 
   // ── Suggestion overlay ────────────────────────────────────────────────
   useEffect(() => {

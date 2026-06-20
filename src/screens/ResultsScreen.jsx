@@ -27,9 +27,10 @@ export default function ResultsScreen() {
   const { aiPathLength } = useAiStore()
   const t = useTheme()
 
-  // Compute AI tour via nearest-neighbour (same as before)
+  // AI path length: prefer ACO result (better quality), fall back to NN
   const aiTour = nearestNeighborTour(nodes)
-  const aiLen  = aiTour.length || aiPathLength || 0
+  const nnLen  = aiTour.length || 0
+  const aiLen  = (aiPathLength > 0 && aiPathLength < nnLen) ? aiPathLength : nnLen
 
   // Finalize scores once on mount
   useEffect(() => {

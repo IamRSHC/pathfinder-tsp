@@ -29,7 +29,7 @@ export default function ArenaScreen() {
     setNodes, setCustomNodeNames,
   } = useGameStore()
   const { mobileDrawerOpen, openDrawer, notification, viewMode } = useUiStore()
-  const { reset: resetAi } = useAiStore()
+  const { reset: resetAi, initAI, stopAI } = useAiStore()
   const t = useTheme()
 
   // ── Spawn helper — single source of truth for node creation ─────────────
@@ -84,6 +84,8 @@ export default function ArenaScreen() {
     }
 
     setNodes(newNodes)
+    // Kick off NN+2-Opt baseline (instant) + ACO worker (async refinement)
+    initAI(newNodes)
     // No success notification — the placing-phase banner guides the player
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -103,6 +105,7 @@ export default function ArenaScreen() {
     return () => {
       isMounted.current = false
       clearTimeout(timer)
+      stopAI()   // terminate ACO worker if still running
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

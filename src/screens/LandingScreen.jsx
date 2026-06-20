@@ -6,6 +6,7 @@ import DifficultyDial        from '../components/ui/DifficultyDial'
 import LeaderboardTeaser     from '../components/ui/LeaderboardTeaser'
 import Navbar                from '../components/ui/Navbar'
 import NodeSourcePicker      from '../components/ui/NodeSourcePicker'
+import CardDeck              from '../components/ui/CardDeck'
 import { useGameStore }      from '../stores/gameStore'
 import { useAiStore }        from '../stores/aiStore'
 import { useTheme }          from '../hooks/useTheme'
@@ -183,153 +184,153 @@ export default function LandingScreen() {
           </p>
         </div>
 
-        {/* ── Config panel ── */}
+        {/* ── Card deck ── */}
         <div
-          className="flex-1 min-h-0 px-3 sm:px-6 lg:px-8 pb-3 max-w-6xl mx-auto w-full overflow-y-auto"
-          style={{ WebkitOverflowScrolling: 'touch' }}
+          className="flex-1 min-h-0 px-3 sm:px-6 lg:px-8 pb-3 max-w-2xl mx-auto w-full"
+          style={{ display: 'flex', flexDirection: 'column' }}
         >
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <CardDeck
+            cards={[
+              {
+                id: 'mode',
+                labelC: 'MODE',
+                labelS: 'Mode',
+                content: (
+                  <div className="space-y-3">
+                    <span className="stat-label block">
+                      {t.is ? 'select mode' : 'SELECT MODE'}
+                    </span>
+                    <div className="grid grid-cols-1 gap-3">
+                      {['solo', 'copilot', 'vs'].map(m => (
+                        <ModeCard key={m} mode={m} selected={mode === m} onClick={setMode} />
+                      ))}
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                id: 'config',
+                labelC: 'CONFIG',
+                labelS: 'Config',
+                content: (
+                  <div className="space-y-4">
+                    {/* Section label */}
+                    <div className="flex items-center gap-2">
+                      <span className="stat-label">
+                        {t.is ? 'game configuration' : 'GAME CONFIGURATION'}
+                      </span>
+                      <div
+                        style={{
+                          flex: 1, height: '1px',
+                          background: 'var(--color-border)',
+                          opacity: t.is ? 0.6 : 1,
+                          minWidth: '20px',
+                        }}
+                      />
+                    </div>
 
-            {/* ── Left col: mode + game config + start ── */}
-            <div className="lg:col-span-2 space-y-3">
+                    {/* Node source 3-way pill */}
+                    <NodeSourcePicker />
 
-              {/* Mode cards */}
-              <span className="stat-label block">
-                {t.is ? 'select mode' : 'SELECT MODE'}
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {['solo', 'copilot', 'vs'].map(m => (
-                  <ModeCard key={m} mode={m} selected={mode === m} onClick={setMode} />
-                ))}
-              </div>
+                    {/* Conditional: Difficulty dial for RANDOM, nothing extra for STANDARD/CUSTOM */}
+                    {nodeSource === 'random' && (
+                      <>
+                        <div
+                          style={{ height: '1px', background: 'var(--color-border)', opacity: 0.5 }}
+                        />
+                        <DifficultyDial value={difficulty} onChange={setDifficulty} />
+                      </>
+                    )}
 
-              {/* ── Unified Game Config card ── */}
-              <div
-                className="rounded-lg p-4 space-y-4"
-                style={{
-                  background: 'var(--color-surface)',
-                  border:     '1px solid var(--color-border)',
-                  boxShadow:  'var(--shadow-card)',
-                }}
-              >
-                {/* Section label */}
-                <div className="flex items-center gap-2">
-                  <span className="stat-label">
-                    {t.is ? 'game configuration' : 'GAME CONFIGURATION'}
-                  </span>
-                  <div
-                    style={{
-                      flex: 1, height: '1px',
-                      background: 'var(--color-border)',
-                      opacity: t.is ? 0.6 : 1,
-                      minWidth: '20px',
-                    }}
-                  />
-                </div>
+                    {/* Custom: validation status summary */}
+                    {nodeSource === 'custom' && customRaw.trim() && (() => {
+                      const { nodes: parsed, errors } = parseCustomNodes(customRaw)
+                      const ok = parsed.length >= 3
+                      return (
+                        <div
+                          style={{
+                            padding:      '0.5rem 0.75rem',
+                            borderRadius: '0.375rem',
+                            border:       `1px solid ${ok ? 'var(--color-primary)' : '#ff555544'}`,
+                            background:   ok
+                              ? (t.is ? 'rgba(45,106,79,0.06)' : 'rgba(0,229,255,0.04)')
+                              : (t.is ? '#FFF5F5' : '#1a0808'),
+                            fontFamily:   'var(--font-mono)',
+                            fontSize:     '0.65rem',
+                            color:        ok ? 'var(--color-primary)' : '#ff5555',
+                          }}
+                        >
+                          {ok
+                            ? `✓ ${parsed.length} nodes ready for routing`
+                            : `⚠ ${errors.length ? errors[0] : 'Need at least 3 valid coordinates'}`}
+                        </div>
+                      )
+                    })()}
 
-                {/* Node source 3-way pill */}
-                <NodeSourcePicker />
-
-                {/* Conditional: Difficulty dial for RANDOM, nothing extra for STANDARD/CUSTOM */}
-                {nodeSource === 'random' && (
-                  <>
-                    <div
-                      style={{ height: '1px', background: 'var(--color-border)', opacity: 0.5 }}
-                    />
-                    <DifficultyDial value={difficulty} onChange={setDifficulty} />
-                  </>
-                )}
-
-                {/* Custom: validation status summary */}
-                {nodeSource === 'custom' && customRaw.trim() && (() => {
-                  const { nodes: parsed, errors } = parseCustomNodes(customRaw)
-                  const ok = parsed.length >= 3
-                  return (
-                    <div
+                    {/* Start button — lives on this card only */}
+                    <button
+                      onClick={handleStart}
+                      disabled={!canStart()}
+                      className="w-full py-4 font-bold text-xl active:scale-95 transition-all duration-200
+                        disabled:opacity-40 disabled:cursor-not-allowed"
                       style={{
-                        padding:      '0.5rem 0.75rem',
-                        borderRadius: '0.375rem',
-                        border:       `1px solid ${ok ? 'var(--color-primary)' : '#ff555544'}`,
-                        background:   ok
-                          ? (t.is ? 'rgba(45,106,79,0.06)' : 'rgba(0,229,255,0.04)')
-                          : (t.is ? '#FFF5F5' : '#1a0808'),
-                        fontFamily:   'var(--font-mono)',
-                        fontSize:     '0.65rem',
-                        color:        ok ? 'var(--color-primary)' : '#ff5555',
+                        fontFamily:    'var(--font-display)',
+                        letterSpacing: t.is ? '0.04em' : '0.15em',
+                        borderRadius:  '0.5rem',
+                        background:    'var(--color-primary)',
+                        color:         t.is ? '#FFFFFF' : '#090d14',
+                        boxShadow:     t.is
+                          ? '0 2px 12px rgba(45,106,79,0.25)'
+                          : '0 0 30px rgba(0,229,255,0.2)',
+                        border:  'none',
+                        cursor:  canStart() ? 'pointer' : 'not-allowed',
                       }}
                     >
-                      {ok
-                        ? `✓ ${parsed.length} nodes ready for routing`
-                        : `⚠ ${errors.length ? errors[0] : 'Need at least 3 valid coordinates'}`}
-                    </div>
-                  )
-                })()}
-              </div>
+                      {t.is ? 'Begin Routing' : 'INITIATE ROUTING'}
+                    </button>
+                  </div>
+                ),
+              },
+              {
+                id: 'leaderboard',
+                labelC: 'LEADERBOARD',
+                labelS: 'Leaderboard',
+                content: (
+                  <div className="space-y-3">
+                    <LeaderboardTeaser />
 
-              {/* Start button */}
-              <button
-                onClick={handleStart}
-                disabled={!canStart()}
-                className="w-full py-4 font-bold text-xl active:scale-95 transition-all duration-200
-                  disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{
-                  fontFamily:    'var(--font-display)',
-                  letterSpacing: t.is ? '0.04em' : '0.15em',
-                  borderRadius:  '0.5rem',  // matches mode cards in both themes
-                  background:    'var(--color-primary)',
-                  color:         t.is ? '#FFFFFF' : '#090d14',
-                  boxShadow:     t.is
-                    ? '0 2px 12px rgba(45,106,79,0.25)'
-                    : '0 0 30px rgba(0,229,255,0.2)',
-                  border:  'none',
-                  cursor:  canStart() ? 'pointer' : 'not-allowed',
-                }}
-              >
-                {t.is ? 'Begin Routing' : 'INITIATE ROUTING'}
-              </button>
-            </div>
-
-            {/* ── Right col: leaderboard + apps ── */}
-            <div className="space-y-3">
-              <LeaderboardTeaser />
-
-              <div
-                className="rounded-lg p-4"
-                style={{
-                  background: 'var(--color-surface)',
-                  border:     '1px solid var(--color-border)',
-                  boxShadow:  'var(--shadow-card)',
-                }}
-              >
-                <span className="stat-label block mb-3">
-                  {t.is ? 'real-world applications' : 'REAL-WORLD APPLICATIONS'}
-                </span>
-                <div className="space-y-2">
-                  {[
-                    { icon: '💊', label: 'Drug Discovery',     cyberCls: 'text-game-green',  sereneColor: '#3A7D5B' },
-                    { icon: '🔬', label: 'Genome Sequencing',  cyberCls: 'text-game-cyan',   sereneColor: '#2D6A4F' },
-                    { icon: '💻', label: 'SoC Routing',        cyberCls: 'text-game-amber',  sereneColor: '#B5838D' },
-                    { icon: '🚚', label: 'Logistics Planning', cyberCls: 'text-game-purple', sereneColor: '#6D6875' },
-                  ].map(a => (
-                    <div
-                      key={a.label}
-                      className="flex items-center gap-2 text-xs"
-                      style={{ fontFamily: 'var(--font-mono)' }}
-                    >
-                      <span>{a.icon}</span>
-                      <span
-                        style={{ color: t.is ? a.sereneColor : undefined }}
-                        className={t.is ? '' : a.cyberCls}
-                      >
-                        {a.label}
+                    <div>
+                      <span className="stat-label block mb-3">
+                        {t.is ? 'real-world applications' : 'REAL-WORLD APPLICATIONS'}
                       </span>
+                      <div className="space-y-2">
+                        {[
+                          { icon: '💊', label: 'Drug Discovery',     cyberCls: 'text-game-green',  sereneColor: '#3A7D5B' },
+                          { icon: '🔬', label: 'Genome Sequencing',  cyberCls: 'text-game-cyan',   sereneColor: '#2D6A4F' },
+                          { icon: '💻', label: 'SoC Routing',        cyberCls: 'text-game-amber',  sereneColor: '#B5838D' },
+                          { icon: '🚚', label: 'Logistics Planning', cyberCls: 'text-game-purple', sereneColor: '#6D6875' },
+                        ].map(a => (
+                          <div
+                            key={a.label}
+                            className="flex items-center gap-2 text-xs"
+                            style={{ fontFamily: 'var(--font-mono)' }}
+                          >
+                            <span>{a.icon}</span>
+                            <span
+                              style={{ color: t.is ? a.sereneColor : undefined }}
+                              className={t.is ? '' : a.cyberCls}
+                            >
+                              {a.label}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-          </div>
+                  </div>
+                ),
+              },
+            ]}
+          />
         </div>
       </div>
     </div>
