@@ -28,9 +28,9 @@ export default function Navbar() {
         gap:            '0.5rem',
       }}
     >
-      {/* ── Logo ── */}
-      <Link
-        to="/"
+      {/* ── Logo — hard reload to reset all state ── */}
+      <a
+        href="/"
         style={{
           display:        'flex',
           alignItems:     'center',
@@ -52,7 +52,7 @@ export default function Navbar() {
         >
           {isSerene ? 'Pathfinder' : 'PATHFINDER'}
         </span>
-      </Link>
+      </a>
 
       {/* ── Right side: nav links + toggle ── */}
       <div
