@@ -1,14 +1,15 @@
-import { useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import { gsap }     from 'gsap'
 import { useTheme } from '../../hooks/useTheme'
 
-const MIN_STAGE_HEIGHT = 320  // px floor so a thin card never looks cramped
-const BORDER_EXTRA     = 2    // outer card's top+bottom border width
+const DRAG_THRESHOLD = 8    // px of movement before a tap becomes a drag
+const SWIPE_THRESHOLD = 70  // px of drag before it commits to navigation
 
 /**
  * CardDeck — a 3-card poker-style deck.
- * One card fully visible at a time; the other two peek out behind it,
- * fanned to either side. Navigate via tabs, chevrons, or drag/swipe.
+ * Fixed poker-card proportions (narrow + tall). One card fully visible at a
+ * time; the other two peek out behind it, fanned to either side.
+ * Navigate via a single pill (arrows folded in) or drag/swipe.
  *
  * props:
  *   cards: [{ id, labelC, labelS, content }]   exactly 3 entries
@@ -18,11 +19,8 @@ export default function CardDeck({ cards }) {
   const n = cards.length
 
   const [active, setActive] = useState(0)
-  const cardRefs    = useRef([])  // outer clipped card shells (animated slots)
-  const contentRefs = useRef([])  // inner natural-height content wrappers (measured)
-  const stageRef     = useRef(null)
-  const heightsRef    = useRef([0, 0, 0])
-  const dragState  = useRef({ dragging: false, startX: 0, lastX: 0 })
+  const cardRefs   = useRef([])
+  const dragState  = useRef({ pending: false, dragging: false, startX: 0, lastX: 0, pointerId: null })
   const animating  = useRef(false)
 
   // ── circular relative offset: -1 (left peek), 0 (active), 1 (right peek) ──
@@ -36,60 +34,19 @@ export default function CardDeck({ cards }) {
       return { x: 0, y: 0, rotate: 0, scale: 1, opacity: 1, zIndex: 30, filter: 'brightness(1)' }
     }
     if (offset === 1) {
-      return { x: 34, y: 22, rotate: 9, scale: 0.91, opacity: 0.5, zIndex: 20, filter: 'brightness(0.85)' }
+      return { x: 26, y: 18, rotate: 8, scale: 0.92, opacity: 0.5, zIndex: 20, filter: 'brightness(0.85)' }
     }
-    // offset === -1
-    return { x: -34, y: 22, rotate: -9, scale: 0.91, opacity: 0.5, zIndex: 20, filter: 'brightness(0.85)' }
+    return { x: -26, y: 18, rotate: -8, scale: 0.92, opacity: 0.5, zIndex: 20, filter: 'brightness(0.85)' }
   }
 
-  // ── apply resting positions on mount / theme change ──────────────────────
+  // ── apply resting positions on mount ──────────────────────────────────────
   useEffect(() => {
     cardRefs.current.forEach((el, i) => {
       if (!el) return
-      const s = slot(relOffset(i))
-      gsap.set(el, s)
+      gsap.set(el, slot(relOffset(i)))
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // ── fixed-size deck: measure every card's natural content height and lock
-  //    the stage to the tallest one. Navigating never resizes the deck —
-  //    only an actual content change (e.g. typing custom nodes) does. ───────
-  const applyStageHeight = useCallback((animate) => {
-    const max = Math.max(MIN_STAGE_HEIGHT, ...heightsRef.current)
-    const px  = Math.ceil(max) + BORDER_EXTRA
-    const el  = stageRef.current
-    if (!el) return
-    if (animate) {
-      gsap.to(el, { height: px, duration: 0.4, ease: 'power2.out' })
-    } else {
-      gsap.set(el, { height: px })
-    }
-  }, [])
-
-  useLayoutEffect(() => {
-    heightsRef.current = contentRefs.current.map(el => (el ? el.getBoundingClientRect().height : 0))
-    applyStageHeight(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  useEffect(() => {
-    const observer = new ResizeObserver(entries => {
-      let changed = false
-      entries.forEach(entry => {
-        const idx = contentRefs.current.indexOf(entry.target)
-        if (idx === -1) return
-        const h = entry.borderBoxSize?.[0]?.blockSize ?? entry.target.getBoundingClientRect().height
-        if (Math.abs(heightsRef.current[idx] - h) > 1) {
-          heightsRef.current[idx] = h
-          changed = true
-        }
-      })
-      if (changed) applyStageHeight(true)
-    })
-    contentRefs.current.forEach(el => el && observer.observe(el))
-    return () => observer.disconnect()
-  }, [applyStageHeight])
 
   const goTo = useCallback((nextActive, dragRelease = false) => {
     if (animating.current || nextActive === active) return
@@ -112,17 +69,29 @@ export default function CardDeck({ cards }) {
   const prev = () => goTo((active - 1 + n) % n)
 
   // ── drag / swipe handling on the active card ──────────────────────────────
+  // Pointer capture is deferred until real movement is detected, so a plain
+  // click/tap on a button inside the card (Mode tile, pill, etc.) is never
+  // hijacked — this is what was breaking selection on desktop.
   const onPointerDown = (e) => {
     if (animating.current) return
-    dragState.current = { dragging: true, startX: e.clientX, lastX: e.clientX }
-    e.currentTarget.setPointerCapture?.(e.pointerId)
+    dragState.current = {
+      pending: true, dragging: false,
+      startX: e.clientX, lastX: e.clientX,
+      pointerId: e.pointerId,
+    }
   }
 
   const onPointerMove = (e) => {
     const ds = dragState.current
-    if (!ds.dragging) return
+    if (!ds.pending) return
     ds.lastX = e.clientX
     const dx = e.clientX - ds.startX
+
+    if (!ds.dragging) {
+      if (Math.abs(dx) < DRAG_THRESHOLD) return
+      ds.dragging = true
+      e.currentTarget.setPointerCapture?.(ds.pointerId)
+    }
 
     const activeEl = cardRefs.current[active]
     if (activeEl) {
@@ -134,7 +103,7 @@ export default function CardDeck({ cards }) {
     }
 
     // preview-pull the destination peek card toward center
-    const dir = dx < 0 ? 1 : -1 // dragging left → next card (offset 1) pulled in
+    const dir  = dx < 0 ? 1 : -1
     const pull = Math.min(Math.abs(dx) / 160, 1)
     cards.forEach((_, i) => {
       const off = relOffset(i)
@@ -143,7 +112,7 @@ export default function CardDeck({ cards }) {
       if (!el) return
       const base = slot(off)
       gsap.set(el, {
-        x:       base.x - (base.x - 0) * pull * 0.5,
+        x:       base.x - base.x * pull * 0.5,
         scale:   base.scale + (1 - base.scale) * pull * 0.5,
         opacity: base.opacity + (1 - base.opacity) * pull * 0.5,
       })
@@ -152,78 +121,92 @@ export default function CardDeck({ cards }) {
 
   const onPointerUp = () => {
     const ds = dragState.current
-    if (!ds.dragging) return
+    if (!ds.pending) return
+    const wasDragging = ds.dragging
     const dx = ds.lastX - ds.startX
+    dragState.current.pending  = false
     dragState.current.dragging = false
 
-    const THRESHOLD = 70
-    if (dx <= -THRESHOLD) { goTo((active + 1) % n, true); return }
-    if (dx >= THRESHOLD)  { goTo((active - 1 + n) % n, true); return }
+    if (!wasDragging) return // plain tap/click — let it bubble to the inner button normally
 
-    // snap back — reset everyone to resting slots
+    if (dx <= -SWIPE_THRESHOLD) { goTo((active + 1) % n, true); return }
+    if (dx >= SWIPE_THRESHOLD)  { goTo((active - 1 + n) % n, true); return }
+
     cardRefs.current.forEach((el, i) => {
       if (!el) return
       gsap.to(el, { ...slot(relOffset(i)), duration: 0.35, ease: 'back.out(1.6)' })
     })
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+  const pillBg     = t.is ? '#F0F5F2' : '#0d1f2d'
+  const pillBorder = t.is ? '1.5px solid #2D6A4F' : '1.5px solid var(--color-primary)'
 
-      {/* ── Tab labels + chevrons ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: '0.75rem',
+      width: 'clamp(240px, 82vw, 360px)', margin: '0 auto',
+    }}>
+
+      {/* ── Single pill: arrows folded in alongside the 3 tab labels ── */}
+      <div
+        style={{
+          position:     'relative',
+          display:      'flex',
+          alignItems:   'stretch',
+          height:       '36px',
+          borderRadius: '999px',
+          background:   pillBg,
+          border:       pillBorder,
+          boxShadow:    t.is ? 'none' : '0 0 8px rgba(0,229,255,0.2)',
+          overflow:     'hidden',
+          flexShrink:   0,
+        }}
+      >
         <button
           onClick={prev}
           aria-label="Previous card"
-          style={navBtnStyle(t)}
+          style={pillArrowStyle(t)}
         >
           ‹
         </button>
 
-        <div style={{
-          flex: 1, display: 'flex', borderRadius: '0.5rem',
-          border: '1px solid var(--color-border)', overflow: 'hidden',
-          background: 'var(--color-surface)',
-        }}>
-          {cards.map((c, i) => (
-            <button
-              key={c.id}
-              onClick={() => goTo(i)}
-              style={{
-                flex: 1, padding: '0.5rem 0.4rem', border: 'none', cursor: 'pointer',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.62rem',
-                fontWeight: 700,
-                letterSpacing: t.is ? '0.02em' : '0.07em',
-                textTransform: t.is ? 'none' : 'uppercase',
-                color: i === active ? 'var(--color-primary)' : 'var(--color-muted)',
-                background: i === active
-                  ? (t.is ? 'rgba(45,106,79,0.08)' : 'rgba(0,229,255,0.07)')
-                  : 'transparent',
-                borderRight: i < n - 1 ? '1px solid var(--color-border)' : 'none',
-                boxShadow: i === active && t.is ? 'inset 0 -2px 0 var(--color-primary)' : 'none',
-                transition: 'color 0.15s ease, background 0.15s ease',
-              }}
-            >
-              {t.is ? c.labelS : c.labelC}
-            </button>
-          ))}
-        </div>
+        {cards.map((c, i) => (
+          <button
+            key={c.id}
+            onClick={() => goTo(i)}
+            style={{
+              flex: 1, border: 'none', cursor: 'pointer',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.6rem',
+              fontWeight: 700,
+              letterSpacing: t.is ? '0.02em' : '0.06em',
+              textTransform: t.is ? 'none' : 'uppercase',
+              color: i === active ? (t.is ? '#FAFAF8' : '#090d14') : 'var(--color-muted)',
+              background: i === active
+                ? (t.is ? 'linear-gradient(135deg,#2D6A4F,#52B788)' : 'linear-gradient(135deg,#00b4d8,#00e5ff)')
+                : 'transparent',
+              transition: 'color 0.2s ease, background 0.2s ease',
+            }}
+          >
+            {t.is ? c.labelS : c.labelC}
+          </button>
+        ))}
 
         <button
           onClick={next}
           aria-label="Next card"
-          style={navBtnStyle(t)}
+          style={pillArrowStyle(t)}
         >
           ›
         </button>
       </div>
 
-      {/* ── Deck stage — height is locked to the tallest card's content, measured live ── */}
+      {/* ── Deck stage — fixed poker-card proportions ── */}
       <div
-        ref={stageRef}
         style={{
           position: 'relative',
+          width: '100%',
+          aspectRatio: '5 / 7',
           perspective: '1400px',
         }}
       >
@@ -238,7 +221,7 @@ export default function CardDeck({ cards }) {
             style={{
               position: 'absolute',
               inset: 0,
-              borderRadius: t.is ? '1rem' : '0.75rem',
+              borderRadius: t.is ? '1.25rem' : '1rem',
               background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               boxShadow: t.is
@@ -250,17 +233,18 @@ export default function CardDeck({ cards }) {
               willChange: 'transform, opacity',
             }}
           >
-            <div
-              ref={el => (contentRefs.current[i] = el)}
-              style={{ padding: 'clamp(0.9rem, 2vw, 1.25rem)' }}
-            >
+            <div style={{
+              height: '100%',
+              boxSizing: 'border-box',
+              padding: 'clamp(0.85rem, 4vw, 1.15rem)',
+            }}>
               {c.content}
             </div>
           </div>
         ))}
       </div>
 
-      {/* ── Step dots (subtle, mobile-friendly secondary affordance) ── */}
+      {/* ── Step dots ── */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: '0.4rem', flexShrink: 0 }}>
         {cards.map((c, i) => (
           <button
@@ -283,19 +267,16 @@ export default function CardDeck({ cards }) {
   )
 }
 
-function navBtnStyle(t) {
+function pillArrowStyle(t) {
   return {
     flexShrink: 0,
-    width: '34px',
-    height: '34px',
-    borderRadius: '0.5rem',
-    border: '1px solid var(--color-border)',
-    background: 'var(--color-surface)',
+    width: '30px',
+    border: 'none',
+    background: 'transparent',
     color: 'var(--color-primary)',
-    fontSize: '1.1rem',
+    fontSize: '1.05rem',
     lineHeight: 1,
     cursor: 'pointer',
     fontFamily: 'var(--font-display)',
-    boxShadow: t.is ? 'none' : '0 0 10px rgba(0,229,255,0.08)',
   }
 }

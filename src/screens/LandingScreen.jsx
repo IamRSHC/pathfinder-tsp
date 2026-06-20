@@ -196,13 +196,13 @@ export default function LandingScreen() {
                 labelC: 'MODE',
                 labelS: 'Mode',
                 content: (
-                  <div className="space-y-2.5">
-                    <span className="stat-label block">
+                  <div className="h-full flex flex-col gap-2.5">
+                    <span className="stat-label block flex-shrink-0">
                       {t.is ? 'select mode' : 'SELECT MODE'}
                     </span>
-                    <div className="flex flex-col gap-2">
+                    <div className="flex-1 min-h-0 flex flex-col gap-2.5">
                       {['solo', 'copilot', 'vs'].map(m => (
-                        <ModeCard key={m} mode={m} selected={mode === m} onClick={setMode} dense />
+                        <ModeCard key={m} mode={m} selected={mode === m} onClick={setMode} fill />
                       ))}
                     </div>
                   </div>
@@ -213,7 +213,7 @@ export default function LandingScreen() {
                 labelC: 'CONFIG',
                 labelS: 'Config',
                 content: (
-                  <div className="space-y-3">
+                  <div className="h-full flex flex-col justify-center space-y-3">
                     {/* Section label */}
                     <div className="flex items-center gap-2">
                       <span className="stat-label">
@@ -296,7 +296,7 @@ export default function LandingScreen() {
                 labelC: 'LEADERBOARD',
                 labelS: 'Leaderboard',
                 content: (
-                  <div className="space-y-3">
+                  <div className="h-full flex flex-col justify-center space-y-3">
                     <LeaderboardTeaser />
 
                     <div>
