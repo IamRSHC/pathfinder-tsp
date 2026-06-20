@@ -414,15 +414,15 @@ body {
   border-radius: 2px;
 }
 
-/* On mobile: force side panels hidden regardless of JS state */
-@media (max-width: 767px) {
+/* On mobile + tablet: force side panels hidden regardless of JS state */
+@media (max-width: 1023px) {
   .landing-side-panel {
     display: none !important;
   }
 }
 
-/* On tablet/desktop: allow JS to control display */
-@media (min-width: 768px) {
+/* On desktop only: allow JS to control display */
+@media (min-width: 1024px) {
   .landing-side-panel {
     /* display controlled by React state + GSAP */
   }
@@ -430,7 +430,7 @@ body {
 
 /* TSP badge in center hero: hide on desktop when side panels are shown
    (the left panel takes over the badge) */
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .landing-badge-mobile-only {
     display: none !important;
   }

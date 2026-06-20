@@ -112,8 +112,8 @@ export default function LandingScreen() {
       const next = new Set(prev)
       next.add(index)
       if (next.size === 3 && !sidePanelsShownRef.current) {
-        // Only animate on tablet/desktop
-        const isWide = window.innerWidth >= 768
+        // Only animate on desktop (≥1024px) — tablets stay single-column
+        const isWide = window.innerWidth >= 1024
         if (isWide) {
           sidePanelsShownRef.current = true
           setSidePanelsShown(true)
