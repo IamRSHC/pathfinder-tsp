@@ -440,3 +440,71 @@ body {
 .landing-card-deck-wrapper {
   overflow: visible !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FLOATING INFO ICON — hazard-light animation
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 1. Glow intensity blink on the button itself */
+@keyframes infoIconGlow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1.5px var(--info-icon-border, #00e5ff),
+      0 0 6px 2px  color-mix(in srgb, var(--info-icon-border, #00e5ff) 30%, transparent),
+      0 4px 16px   color-mix(in srgb, var(--info-icon-border, #00e5ff) 10%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1.5px var(--info-icon-border, #00e5ff),
+      0 0 18px 6px color-mix(in srgb, var(--info-icon-border, #00e5ff) 55%, transparent),
+      0 4px 24px   color-mix(in srgb, var(--info-icon-border, #00e5ff) 22%, transparent);
+  }
+}
+
+/* 2. Expanding ring that scales out and fades */
+@keyframes infoIconRing {
+  0% {
+    transform: scale(1);
+    opacity:   0.7;
+  }
+  70% {
+    transform: scale(2.1);
+    opacity:   0.15;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity:   0;
+  }
+}
+
+/* Apply both animations to the unseen state */
+.info-icon-pulse {
+  animation: infoIconGlow 1.4s ease-in-out infinite;
+}
+
+.info-icon-ring {
+  animation: infoIconRing 1.4s ease-out infinite;
+  transform-origin: center;
+}
+
+/* Serene theme: swap the css variable so ring/glow use green */
+[data-theme="serene"] .info-icon-pulse,
+[data-theme="serene"] .info-icon-ring {
+  --info-icon-border: #2D6A4F;
+}
+
+/* Icon visible only on mobile/tablet — hidden on desktop (≥1024px) */
+#floating-info-icon {
+  display: flex;
+}
+@media (min-width: 1024px) {
+  #floating-info-icon {
+    display: none !important;
+  }
+}
+
+/* Serene: override text-shadow none (icon glyph is styled inline, safe) */
+[data-theme="serene"] #floating-info-icon span {
+  text-shadow: none !important;
+}
+

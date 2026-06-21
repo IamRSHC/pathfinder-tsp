@@ -7,6 +7,7 @@ import LeaderboardTeaser     from '../components/ui/LeaderboardTeaser'
 import Navbar                from '../components/ui/Navbar'
 import NodeSourcePicker      from '../components/ui/NodeSourcePicker'
 import CardDeck              from '../components/ui/CardDeck'
+import FloatingInfoIcon      from '../components/ui/FloatingInfoIcon'
 import { useGameStore }      from '../stores/gameStore'
 import { useAiStore }        from '../stores/aiStore'
 import { useTheme }          from '../hooks/useTheme'
@@ -609,6 +610,10 @@ export default function LandingScreen() {
 
         </div>{/* end main layout */}
       </div>
+
+      {/* ── Floating ⓘ — mobile/tablet only ── */}
+      <FloatingInfoIcon />
+
     </div>
   )
 }
