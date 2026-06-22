@@ -35,6 +35,7 @@ export function usePixiGame(containerRef) {
   const pulseTickRef = useRef(0)
   const nodeDownStagePos = useRef({ x: 0, y: 0 })  // stage position at last pointerdown
   const multiTouchRef    = useRef(false)            // true when 2+ fingers are/were on screen
+  const isPanningRef     = useRef(false)            // true while a mouse-drag pan is active
 
   const { nodes, humanEdges, aiEdges, gamePhase, startNode, difficulty,
           nodeSource, standardSize, customRaw,
@@ -241,111 +242,275 @@ export function usePixiGame(containerRef) {
     sugGfx.drawCircle(nodes[to].x, nodes[to].y, 16)
   }, [suggestion, nodes, theme])
 
+  // ── Shared clamp helper ───────────────────────────────────────────────
+  // Prevents panning into blank space outside the canvas world when zoomed in.
+  // When zoomed OUT (scale < 1) the world is smaller than the viewport, so we
+  // centre it instead of clamping to an edge.
+  function clampStage(app) {
+    const sc = app.stage.scale.x
+    const pr = window.devicePixelRatio || 1
+    const vw = app.view.width  / pr
+    const vh = app.view.height / pr
+    const ww = vw * sc   // world width in screen pixels
+    const wh = vh * sc
+
+    if (ww <= vw) {
+      // World fits inside viewport horizontally → centre it
+      app.stage.x = (vw - ww) / 2
+    } else {
+      // World is wider than viewport → clamp so edges don't show blank space
+      app.stage.x = Math.max(vw - ww, Math.min(0, app.stage.x))
+    }
+
+    if (wh <= vh) {
+      app.stage.y = (vh - wh) / 2
+    } else {
+      app.stage.y = Math.max(vh - wh, Math.min(0, app.stage.y))
+    }
+  }
+
+  // ── Desktop: mouse-wheel zoom + drag-to-pan ───────────────────────────
+  // Left-click drag → pan (Google Maps style).
+  // Middle-click / right-click drag → also pan.
+  // Mouse wheel → zoom IN only (min = scale 1, the default arena view).
+  useEffect(() => {
+    const app = appRef.current
+    if (!app) return
+    const canvas = app.view
+
+    // Zoom-out floor = 1.0 (the natural/default canvas scale).
+    // Users can zoom IN freely up to 6×, but can never zoom out past the
+    // original grid size they see when first entering the Arena.
+    const MIN_SCALE = 1.0
+    const MAX_SCALE = 6
+
+    // Hint to the user that the canvas is pannable (Google Maps style)
+    canvas.style.cursor = 'grab'
+
+    // ── Wheel zoom ───────────────────────────────────────────────────────
+    function onWheel(e) {
+      e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      // Cursor position relative to the canvas element (CSS pixels)
+      const mx = e.clientX - rect.left
+      const my = e.clientY - rect.top
+
+      // Normalise delta across browsers/trackpads
+      const delta    = -e.deltaY * (e.deltaMode === 1 ? 30 : e.deltaMode === 2 ? 300 : 1)
+      const factor   = 1 + Math.min(Math.abs(delta), 200) / 600
+      const zoomIn   = delta > 0
+      const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE,
+        app.stage.scale.x * (zoomIn ? factor : 1 / factor)
+      ))
+
+      // Scale relative to cursor so the point under the mouse stays fixed
+      const ratio  = newScale / app.stage.scale.x
+      app.stage.x  = mx - (mx - app.stage.x) * ratio
+      app.stage.y  = my - (my - app.stage.y) * ratio
+      app.stage.scale.set(newScale)
+      clampStage(app)
+    }
+
+    // ── Mouse drag pan ────────────────────────────────────────────────────
+    // button 0 = left-click   (Google Maps style — primary pan gesture)
+    // button 1 = middle-click (power-user shortcut)
+    // button 2 = right-click  (fallback)
+    //
+    // NOTE: For left-click (button 0) we do NOT call e.preventDefault() so
+    // Pixi's synthetic pointer events still reach node containers.
+    // Accidental node-selection during a drag is prevented by the existing
+    // stage-movement guard inside each node's pointerup handler (>10 px).
+    let dragActive  = false
+    let dragStartX  = 0, dragStartY  = 0
+    let stageStartX = 0, stageStartY = 0
+
+    function onMouseDown(e) {
+      if (e.button === 0 || e.button === 1 || e.button === 2) {
+        if (e.button !== 0) e.preventDefault()  // keep left-click events for Pixi nodes
+        dragActive           = true
+        isPanningRef.current = false
+        dragStartX           = e.clientX
+        dragStartY           = e.clientY
+        stageStartX          = app.stage.x
+        stageStartY          = app.stage.y
+        canvas.style.cursor  = 'grabbing'
+      }
+    }
+
+    function onMouseMove(e) {
+      if (!dragActive) return
+      const dx = e.clientX - dragStartX
+      const dy = e.clientY - dragStartY
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        isPanningRef.current = true
+      }
+      if (isPanningRef.current) {
+        app.stage.x = stageStartX + dx
+        app.stage.y = stageStartY + dy
+        clampStage(app)
+      }
+    }
+
+    function onMouseUp(e) {
+      if (e.button === 0 || e.button === 1 || e.button === 2) {
+        dragActive           = false
+        isPanningRef.current = false
+        canvas.style.cursor  = 'grab'
+      }
+    }
+
+    // Suppress the context menu so right-click-drag works cleanly
+    function onContextMenu(e) { e.preventDefault() }
+
+    canvas.addEventListener('wheel',       onWheel,       { passive: false })
+    canvas.addEventListener('mousedown',   onMouseDown)
+    window.addEventListener('mousemove',   onMouseMove)   // on window so drag works if cursor leaves canvas
+    window.addEventListener('mouseup',     onMouseUp)
+    canvas.addEventListener('contextmenu', onContextMenu)
+
+    return () => {
+      canvas.style.cursor = ''
+      canvas.removeEventListener('wheel',       onWheel)
+      canvas.removeEventListener('mousedown',   onMouseDown)
+      window.removeEventListener('mousemove',   onMouseMove)
+      window.removeEventListener('mouseup',     onMouseUp)
+      canvas.removeEventListener('contextmenu', onContextMenu)
+    }
+  }, []) // stable — only needs the canvas ref, not node/theme state
+
+
   // ── Mobile touch: pan (1 finger) + pinch-zoom (2 fingers) ─────────────
-  // Desktop mouse events are completely untouched.
-  // Guards: 'ontouchstart' in window — only runs on touch devices.
+  //
+  // Design:
+  //   • 1-finger drag   → pan in any direction freely
+  //   • 2-finger pinch  → zoom centred on the midpoint (also pans with fingers)
+  //   • 2→1 transition  → seamlessly continue panning with the remaining finger
+  //   • tap (< 8px)     → node click (guarded by multiTouchRef + move distance)
+  //
   useEffect(() => {
     const app = appRef.current
     if (!app || !('ontouchstart' in window)) return
 
     const canvas = app.view
+
+    // ── State ─────────────────────────────────────────────────────────────
+    let mode          = 'idle'   // 'idle' | 'pan' | 'pinch'
     let panStartX     = 0, panStartY     = 0
     let stageStartX   = 0, stageStartY   = 0
-    let totalMoveDist = 0
-    let isPanning     = false
     let pinchStartDist  = 0
     let pinchStartScale = 1
+    let pinchMidStartX  = 0, pinchMidStartY  = 0   // midpoint at pinch start
+    let stageAtPinchX   = 0, stageAtPinchY  = 0   // stage pos at pinch start
 
-    function touchDist(t) {
-      const dx = t[0].clientX - t[1].clientX
-      const dy = t[0].clientY - t[1].clientY
+    function getTouchMid(touches) {
+      return {
+        x: (touches[0].clientX + touches[1].clientX) / 2,
+        y: (touches[0].clientY + touches[1].clientY) / 2,
+      }
+    }
+    function touchDist(touches) {
+      const dx = touches[0].clientX - touches[1].clientX
+      const dy = touches[0].clientY - touches[1].clientY
       return Math.sqrt(dx * dx + dy * dy)
     }
 
-    // Clamp stage so user never pans into empty space beyond the canvas bounds
-    function clampStage() {
-      const sc  = app.stage.scale.x
-      const pr  = window.devicePixelRatio || 1
-      const vw  = app.view.width  / pr
-      const vh  = app.view.height / pr
-      const ww  = vw * sc
-      const wh  = vh * sc
-      app.stage.x = Math.max(Math.min(0, vw - ww), Math.min(0, app.stage.x))
-      app.stage.y = Math.max(Math.min(0, vh - wh), Math.min(0, app.stage.y))
-    }
-
+    // ── touchstart ────────────────────────────────────────────────────────
     function onTouchStart(e) {
       if (e.touches.length === 1) {
-        panStartX     = e.touches[0].clientX
-        panStartY     = e.touches[0].clientY
-        stageStartX   = app.stage.x
-        stageStartY   = app.stage.y
-        totalMoveDist = 0
-        isPanning     = false
-        pinchStartDist = 0
-      } else if (e.touches.length === 2) {
-        // ── SOLUTION A: Multi-touch guard ────────────────────────────────
-        // Set immediately when 2nd finger touches — BEFORE any pointerup fires.
-        // This is the only reliable moment: native touchstart always precedes
-        // Pixi's synthetic pointerup in the browser event queue.
+        // Single finger: begin potential pan (or tap if barely moves)
+        mode        = 'pan'
+        panStartX   = e.touches[0].clientX
+        panStartY   = e.touches[0].clientY
+        stageStartX = app.stage.x
+        stageStartY = app.stage.y
+      } else if (e.touches.length >= 2) {
+        // Two fingers: switch to pinch-zoom mode
+        // Also set the multi-touch guard immediately so node pointerup is ignored
         multiTouchRef.current = true
-        pinchStartDist  = touchDist(e.touches)
-        pinchStartScale = app.stage.scale.x
-        isPanning       = false
+        mode             = 'pinch'
+        pinchStartDist   = touchDist(e.touches)
+        pinchStartScale  = app.stage.scale.x
+        const mid        = getTouchMid(e.touches)
+        const rect       = canvas.getBoundingClientRect()
+        pinchMidStartX   = mid.x - rect.left
+        pinchMidStartY   = mid.y - rect.top
+        stageAtPinchX    = app.stage.x
+        stageAtPinchY    = app.stage.y
       }
     }
 
+    // ── touchmove ─────────────────────────────────────────────────────────
     function onTouchMove(e) {
       e.preventDefault()
-      if (e.touches.length === 1 && pinchStartDist === 0) {
+
+      if (mode === 'pan' && e.touches.length === 1) {
         const dx = e.touches[0].clientX - panStartX
         const dy = e.touches[0].clientY - panStartY
-        totalMoveDist = Math.sqrt(dx * dx + dy * dy)
-        if (totalMoveDist > 8) {
-          isPanning   = true
+        // Only start moving after a small dead-zone to avoid accidental pans
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
           app.stage.x = stageStartX + dx
           app.stage.y = stageStartY + dy
-          clampStage()
+          clampStage(app)
         }
-      } else if (e.touches.length === 2 && pinchStartDist > 0) {
-        const dist     = touchDist(e.touches)
-        const newScale = Math.max(0.45, Math.min(2.8, pinchStartScale * (dist / pinchStartDist)))
+      } else if (mode === 'pinch' && e.touches.length >= 2) {
         const rect     = canvas.getBoundingClientRect()
-        const mx       = ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left
-        const my       = ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top
+        const mid      = getTouchMid(e.touches)
+        const curMidX  = mid.x - rect.left
+        const curMidY  = mid.y - rect.top
+
+        // ── Zoom: scale relative to pinch midpoint ─────────────────────
+        const dist     = touchDist(e.touches)
+        const newScale = Math.max(0.25, Math.min(6,
+          pinchStartScale * (dist / pinchStartDist)
+        ))
         const ratio    = newScale / app.stage.scale.x
-        app.stage.x    = mx - (mx - app.stage.x) * ratio
-        app.stage.y    = my - (my - app.stage.y) * ratio
         app.stage.scale.set(newScale)
-        clampStage()
-        isPanning = true
+
+        // ── Pan: midpoint movement also translates the stage ────────────
+        // Formula: keep pinchMidStart world-point anchored to pinchMidStart
+        // screen position, then offset by how much the midpoint moved.
+        const panDx = curMidX - pinchMidStartX
+        const panDy = curMidY - pinchMidStartY
+        app.stage.x  = pinchMidStartX - (pinchMidStartX - stageAtPinchX) * (newScale / pinchStartScale) + panDx
+        app.stage.y  = pinchMidStartY - (pinchMidStartY - stageAtPinchY) * (newScale / pinchStartScale) + panDy
+
+        clampStage(app)
       }
     }
 
+    // ── touchend / touchcancel ─────────────────────────────────────────────
     let multiTouchResetTimer = null
     function onTouchEnd(e) {
-      if (e.touches.length === 0) {
-        isPanning      = false
-        pinchStartDist = 0
-        // Reset the multi-touch flag after a 200ms cooldown.
-        // Why 200ms: fingers don't always lift simultaneously. Finger A can
-        // lift and fire pointerup BEFORE finger B lifts and fires touchend.
-        // The cooldown keeps the flag true long enough to block all staggered
-        // pointerup events before resetting for the next interaction.
+      const remaining = e.touches.length
+
+      if (remaining === 0) {
+        mode = 'idle'
+        // Reset multi-touch guard after a short cooldown so staggered
+        // pointerup events from Pixi don't fire node clicks
         clearTimeout(multiTouchResetTimer)
         multiTouchResetTimer = setTimeout(() => {
           multiTouchRef.current = false
         }, 200)
+      } else if (remaining === 1 && mode === 'pinch') {
+        // Transition: last finger lifted from a pinch → keep panning with
+        // the single remaining finger, re-anchoring from its current position
+        mode        = 'pan'
+        panStartX   = e.touches[0].clientX
+        panStartY   = e.touches[0].clientY
+        stageStartX = app.stage.x
+        stageStartY = app.stage.y
       }
     }
 
-    canvas.addEventListener('touchstart', onTouchStart, { passive: true  })
-    canvas.addEventListener('touchmove',  onTouchMove,  { passive: false })
-    canvas.addEventListener('touchend',   onTouchEnd,   { passive: true  })
+    canvas.addEventListener('touchstart',  onTouchStart,  { passive: true  })
+    canvas.addEventListener('touchmove',   onTouchMove,   { passive: false })
+    canvas.addEventListener('touchend',    onTouchEnd,    { passive: true  })
+    canvas.addEventListener('touchcancel', onTouchEnd,    { passive: true  })
     return () => {
-      canvas.removeEventListener('touchstart', onTouchStart)
-      canvas.removeEventListener('touchmove',  onTouchMove)
-      canvas.removeEventListener('touchend',   onTouchEnd)
+      canvas.removeEventListener('touchstart',  onTouchStart)
+      canvas.removeEventListener('touchmove',   onTouchMove)
+      canvas.removeEventListener('touchend',    onTouchEnd)
+      canvas.removeEventListener('touchcancel', onTouchEnd)
     }
   }, [nodes]) // re-attach after node rebuild (new containers on stage)
 
