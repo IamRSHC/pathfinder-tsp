@@ -20,9 +20,11 @@ export default function CardDeck({ cards, onCardVisit }) {
   const n = cards.length
 
   const [active, setActive] = useState(0)
-  const cardRefs   = useRef([])
-  const dragState  = useRef({ pending: false, dragging: false, startX: 0, lastX: 0, pointerId: null })
-  const animating  = useRef(false)
+  const cardRefs      = useRef([])
+  const dragState     = useRef({ pending: false, dragging: false, startX: 0, lastX: 0, pointerId: null })
+  const animating     = useRef(false)
+  const hintSwipedRef  = useRef(false)   // true once user manually navigates
+  const hintIntervalRef = useRef(null)   // setInterval id for the hint loop
 
   // notify parent of the initial card on mount
   useEffect(() => {
@@ -45,24 +47,26 @@ export default function CardDeck({ cards, onCardVisit }) {
     return { x: -26, y: 18, rotate: -8, scale: 0.92, opacity: 0.5, zIndex: 20, filter: 'brightness(0.85)' }
   }
 
-  // ── apply resting positions on mount + play a one-time swipe-hint ───────────
+  // ── apply resting positions on mount + repeating swipe-hint ─────────────
+  // The hint nudges the active card left and springs back every 3.5 seconds
+  // until the user manually swipes to a different card (goTo → hintSwipedRef).
   useEffect(() => {
     cardRefs.current.forEach((el, i) => {
       if (!el) return
       gsap.set(el, slot(relOffset(i)))
     })
 
-    // ── Swipe-hint: after 1.2 s nudge the active card so users discover
-    //    that the deck is swipeable — plays exactly once on mount. ──────────
-    const hintTimer = setTimeout(() => {
+    function playHint() {
+      // Guard: stop if user has swiped or an animation is in progress
+      if (hintSwipedRef.current || animating.current) return
       const activeEl = cardRefs.current[0]
-      const peekEl   = cardRefs.current[1]   // the right-peek card
+      const peekEl   = cardRefs.current[1]   // right-peek card
       if (!activeEl) return
 
       const tl = gsap.timeline()
-      // nudge active card left, tilt slightly
+      // nudge active card left with a tilt
       tl.to(activeEl, { x: -22, rotate: -3, duration: 0.38, ease: 'power2.out' })
-      // simultaneously pull the right-peek card toward center (preview effect)
+      // simultaneously pull the right-peek card toward center
       if (peekEl) {
         tl.to(peekEl,
           { x: slot(1).x * 0.35, scale: 0.97, opacity: 0.72, duration: 0.38, ease: 'power2.out' },
@@ -77,14 +81,47 @@ export default function CardDeck({ cards, onCardVisit }) {
           '-=0.45'
         )
       }
+    }
+
+    // Initial delay before first hint (let the entrance animation settle)
+    const initTimer = setTimeout(() => {
+      playHint()
+      // Repeat every 3.5 seconds until the user swipes
+      hintIntervalRef.current = setInterval(() => {
+        if (hintSwipedRef.current) {
+          clearInterval(hintIntervalRef.current)
+          hintIntervalRef.current = null
+          return
+        }
+        playHint()
+      }, 3500)
     }, 1200)
 
-    return () => clearTimeout(hintTimer)
+    return () => {
+      clearTimeout(initTimer)
+      if (hintIntervalRef.current) {
+        clearInterval(hintIntervalRef.current)
+        hintIntervalRef.current = null
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const goTo = useCallback((nextActive, dragRelease = false) => {
     if (animating.current || nextActive === active) return
+
+    // First manual navigation: stop the hint loop forever
+    if (!hintSwipedRef.current) {
+      hintSwipedRef.current = true
+      if (hintIntervalRef.current) {
+        clearInterval(hintIntervalRef.current)
+        hintIntervalRef.current = null
+      }
+      // Snap any ongoing hint animation back to rest immediately
+      const el0 = cardRefs.current[0]
+      if (el0) gsap.killTweensOf(el0)
+    }
+
     animating.current = true
     setActive(nextActive)
     onCardVisit?.(nextActive)

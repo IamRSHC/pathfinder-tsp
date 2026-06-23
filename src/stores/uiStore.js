@@ -9,10 +9,12 @@ export const useUiStore = create((set) => ({
   theme:            'cyber',
   viewMode:         '2d',   // '2d' | '3d'
   aiPanelOpen:      false,  // desktop AI panel — hidden by default, toggled by user
+  drawerFocused:    false,  // true when drawer opened via 3-finger gesture (hides tab bar)
 
   toggleDrawer:       ()    => set(s => ({ mobileDrawerOpen: !s.mobileDrawerOpen })),
-  openDrawer:         (tab) => set({ mobileDrawerOpen: true, activeDrawerTab: tab }),
-  closeDrawer:        ()    => set({ mobileDrawerOpen: false }),
+  openDrawer:         (tab) => set({ mobileDrawerOpen: true,  activeDrawerTab: tab, drawerFocused: false }),
+  openDrawerFocused:  (tab) => set({ mobileDrawerOpen: true,  activeDrawerTab: tab, drawerFocused: true  }),
+  closeDrawer:        ()    => set({ mobileDrawerOpen: false, drawerFocused: false }),
   setActiveDrawerTab: (tab) => set({ activeDrawerTab: tab }),
 
   toggleAiPanel: () => set(s => ({ aiPanelOpen: !s.aiPanelOpen })),

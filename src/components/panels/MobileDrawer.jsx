@@ -6,7 +6,10 @@ import AIPanel           from './AIPanel'
 import StatsPanel        from './StatsPanel'
 
 export default function MobileDrawer() {
-  const { mobileDrawerOpen, activeDrawerTab, closeDrawer, setActiveDrawerTab } = useUiStore()
+  const {
+    mobileDrawerOpen, activeDrawerTab, drawerFocused,
+    closeDrawer, setActiveDrawerTab,
+  } = useUiStore()
   const t = useTheme()
   const drawerRef = useRef(null)
 
@@ -18,6 +21,11 @@ export default function MobileDrawer() {
       ease:     'power3.out',
     })
   }, [mobileDrawerOpen])
+
+  // Panel title for focused (gesture-opened) mode
+  const focusedTitle = activeDrawerTab === 'ai'
+    ? (t.is ? '🤖 AI Co-Pilot' : '🤖 AI CO-PILOT')
+    : (t.is ? '📊 Statistics'   : '📊 STATISTICS')
 
   return (
     <>
@@ -42,20 +50,35 @@ export default function MobileDrawer() {
           <div className="drawer-handle" />
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-game-border px-4">
-          {['ai', 'stats'].map(tab => (
+        {drawerFocused ? (
+          /* ── Focused mode (3-finger gesture): show only the active panel ── */
+          <div className="px-4 pb-2 border-b border-game-border flex items-center justify-between">
+            <span className={`font-mono text-sm font-bold ${t.primary.text}`}>
+              {focusedTitle}
+            </span>
             <button
-              key={tab}
-              onClick={() => setActiveDrawerTab(tab)}
-              className={`flex-1 py-2 transition-colors ${t.tab(activeDrawerTab === tab)}`}
+              onClick={closeDrawer}
+              className="font-mono text-xs text-game-muted active:text-game-cyan transition-colors"
             >
-              {tab === 'ai'
-                ? (t.is ? '🤖 AI Panel' : '🤖 AI PANEL')
-                : (t.is ? '📊 Stats'    : '📊 STATS')}
+              {t.is ? 'Close ×' : 'CLOSE ×'}
             </button>
-          ))}
-        </div>
+          </div>
+        ) : (
+          /* ── Normal mode (button): show tab bar ── */
+          <div className="flex border-b border-game-border px-4">
+            {['ai', 'stats'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveDrawerTab(tab)}
+                className={`flex-1 py-2 transition-colors ${t.tab(activeDrawerTab === tab)}`}
+              >
+                {tab === 'ai'
+                  ? (t.is ? '🤖 AI Panel' : '🤖 AI PANEL')
+                  : (t.is ? '📊 Stats'    : '📊 STATS')}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Content */}
         <div className="overflow-y-auto" style={{ maxHeight: 'calc(75vh - 80px)' }}>

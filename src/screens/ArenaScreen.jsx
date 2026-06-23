@@ -94,7 +94,13 @@ export default function ArenaScreen() {
     isMounted.current = true
     resetGame()
     resetAi()
-    useUiStore.setState({ viewMode: '2d' })
+    useUiStore.setState({
+      viewMode:    '2d',
+      // AI panel: visible by default for Co-Pilot & VS modes so the
+      // AI suggestions are immediately accessible. Hidden in Solo Run
+      // so the player isn't influenced by the AI's solution path.
+      aiPanelOpen: mode !== 'solo',
+    })
 
     // Use a short timeout instead of rAF — rAF fires before CSS layout is fully
     // committed on some browsers. 50ms ensures the flex layout has measured.
@@ -202,36 +208,39 @@ export default function ArenaScreen() {
             </div>
           )}
 
-          {/* ── AI Co-Pilot toggle tab — desktop only, right edge of canvas ── */}
-          <button
-            onClick={toggleAiPanel}
-            className="hidden lg:flex flex-col items-center gap-1
-              absolute right-0 top-1/2 -translate-y-1/2 z-20
-              py-4 px-1.5 rounded-l-lg
-              bg-game-surface border border-game-border
-              text-game-muted hover:text-game-cyan transition-colors"
-            style={{ borderRight: 'none' }}
-            title={aiPanelOpen ? 'Hide AI Co-Pilot' : 'Show AI Co-Pilot'}
-          >
-            <span style={{ fontSize: '0.9rem' }}>🤖</span>
-            <span
-              className="font-mono"
-              style={{
-                fontSize:    '0.42rem',
-                letterSpacing: '0.1em',
-                writingMode: 'vertical-rl',
-                transform:   'rotate(180deg)',
-                textTransform: 'uppercase',
-                color:       'var(--color-muted)',
-                marginTop:   '2px',
-              }}
+          {/* ── AI Co-Pilot toggle tab — Solo Run only, right edge of canvas ── */}
+          {/* In Co-Pilot and VS AI modes the panel is always visible; no toggle needed */}
+          {mode === 'solo' && (
+            <button
+              onClick={toggleAiPanel}
+              className="hidden lg:flex flex-col items-center gap-1
+                absolute right-0 top-1/2 -translate-y-1/2 z-20
+                py-4 px-1.5 rounded-l-lg
+                bg-game-surface border border-game-border
+                text-game-muted hover:text-game-cyan transition-colors"
+              style={{ borderRight: 'none' }}
+              title={aiPanelOpen ? 'Hide AI Co-Pilot' : 'Show AI Co-Pilot'}
             >
-              {t.is ? 'Co-Pilot' : 'CO-PILOT'}
-            </span>
-            <span className="font-bold" style={{ fontSize: '0.75rem' }}>
-              {aiPanelOpen ? '›' : '‹'}
-            </span>
-          </button>
+              <span style={{ fontSize: '0.9rem' }}>🤖</span>
+              <span
+                className="font-mono"
+                style={{
+                  fontSize:      '0.42rem',
+                  letterSpacing: '0.1em',
+                  writingMode:   'vertical-rl',
+                  transform:     'rotate(180deg)',
+                  textTransform: 'uppercase',
+                  color:         'var(--color-muted)',
+                  marginTop:     '2px',
+                }}
+              >
+                {t.is ? 'Co-Pilot' : 'CO-PILOT'}
+              </span>
+              <span className="font-bold" style={{ fontSize: '0.75rem' }}>
+                {aiPanelOpen ? '›' : '‹'}
+              </span>
+            </button>
+          )}
 
           {/* Mobile bottom bar */}
           <div className="absolute bottom-0 left-0 right-0 lg:hidden
@@ -263,16 +272,26 @@ export default function ArenaScreen() {
           </div>
         </div>
 
-        {/* AI panel — right, desktop only, collapsible via toggle tab */}
+        {/* AI panel — right, desktop only */}
+        {/* Co-Pilot & VS AI: always open (no toggle button, no collapsing).   */}
+        {/* Solo Run: collapsible via the toggle tab button.                    */}
+        {/*                                                                     */}
+        {/* Height fix: outer wrapper uses lg:block (not lg:flex) so it is a   */}
+        {/* plain block-level flex item whose height is determined by the       */}
+        {/* parent flex container's align-items:stretch. The inner div uses     */}
+        {/* position:absolute top/bottom:0 so AIPanel's h-full always resolves  */}
+        {/* to the correct full height instead of collapsing to 0.             */}
         <div
-          className="hidden lg:flex shrink-0 flex-col overflow-y-auto overflow-x-hidden"
+          className="hidden lg:block shrink-0 overflow-hidden relative"
           style={{
-            width:      aiPanelOpen ? '17rem' : '0px',
+            width:      (mode !== 'solo' || aiPanelOpen) ? '17rem' : '0px',
             minWidth:   '0px',
             transition: 'width 0.28s ease',
           }}
         >
-          <AIPanel />
+          <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: '17rem', minWidth: '17rem' }}>
+            <AIPanel />
+          </div>
         </div>
       </div>
 

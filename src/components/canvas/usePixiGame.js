@@ -184,6 +184,8 @@ export function usePixiGame(containerRef) {
   // ── Redraw edges ──────────────────────────────────────────────────────
   // In Solo Run mode AI edges are intentionally hidden so the player
   // can't follow the AI's path — they must think for themselves.
+  // We read mode from getState() (not the hook closure) to be immune to
+  // the local 'let mode' variable that the touch useEffect declares.
   useEffect(() => {
     const gfx = edgesGfxRef.current
     if (!gfx || !nodes.length) return
@@ -193,7 +195,8 @@ export function usePixiGame(containerRef) {
       gfx.moveTo(nodes[from].x, nodes[from].y)
       gfx.lineTo(nodes[to].x, nodes[to].y)
     })
-    if (mode !== 'solo') {
+    const currentMode = useGameStore.getState().mode
+    if (currentMode !== 'solo') {
       aiEdges.forEach(({ from, to }) => {
         gfx.lineStyle(theme === 'serene' ? 1.5 : 2, C.aiEdge, theme === 'serene' ? 0.55 : 0.6)
         gfx.moveTo(nodes[from].x, nodes[from].y)
@@ -428,8 +431,8 @@ export function usePixiGame(containerRef) {
         stageStartY = app.stage.y
       } else if (e.touches.length === 3) {
         // ── 3-finger panel gesture ────────────────────────────────────────
-        // Left third of screen  → open Statistics drawer
-        // Right third of screen → open AI Co-Pilot drawer
+        // Left third  → Statistics only (no tab bar shown)
+        // Right third → AI Co-Pilot only (no tab bar shown)
         mode = 'idle'   // block any panning
         multiTouchRef.current = true
         const avgX = (
@@ -437,9 +440,9 @@ export function usePixiGame(containerRef) {
         ) / 3
         const vw = window.innerWidth
         if (avgX < vw * 0.33) {
-          useUiStore.getState().openDrawer('stats')
+          useUiStore.getState().openDrawerFocused('stats')
         } else if (avgX > vw * 0.67) {
-          useUiStore.getState().openDrawer('ai')
+          useUiStore.getState().openDrawerFocused('ai')
         }
       } else if (e.touches.length === 2) {
         // Two fingers: switch to pinch-zoom mode
@@ -478,9 +481,10 @@ export function usePixiGame(containerRef) {
 
         // ── Zoom: scale relative to pinch midpoint ─────────────────────
         const dist     = touchDist(e.touches)
-        // MIN 1.0 = the default view — users can only zoom IN, never zoom out
-        // past the grid size they see when first entering the Arena.
-        const newScale = Math.max(1.0, Math.min(6,
+        // MIN 0.35: gentle zoom-out floor so users can always see the full node
+        // field. 1.0 was too aggressive — the clampStage formula locks stage.x/y
+        // to 0 when scale=1.0 (world == viewport), preventing ALL panning.
+        const newScale = Math.max(0.35, Math.min(6,
           pinchStartScale * (dist / pinchStartDist)
         ))
         const ratio    = newScale / app.stage.scale.x
