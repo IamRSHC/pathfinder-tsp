@@ -24,11 +24,11 @@ export default function ArenaScreen() {
 
   const {
     gamePhase, resetGame, nodes,
-    startNode, humanEdges,
+    startNode, humanEdges, mode,
     nodeSource, standardSize, customRaw, difficulty,
     setNodes, setCustomNodeNames,
   } = useGameStore()
-  const { mobileDrawerOpen, openDrawer, notification, viewMode } = useUiStore()
+  const { mobileDrawerOpen, openDrawer, notification, viewMode, aiPanelOpen, toggleAiPanel } = useUiStore()
   const { reset: resetAi, initAI, stopAI } = useAiStore()
   const t = useTheme()
 
@@ -202,6 +202,37 @@ export default function ArenaScreen() {
             </div>
           )}
 
+          {/* ── AI Co-Pilot toggle tab — desktop only, right edge of canvas ── */}
+          <button
+            onClick={toggleAiPanel}
+            className="hidden lg:flex flex-col items-center gap-1
+              absolute right-0 top-1/2 -translate-y-1/2 z-20
+              py-4 px-1.5 rounded-l-lg
+              bg-game-surface border border-game-border
+              text-game-muted hover:text-game-cyan transition-colors"
+            style={{ borderRight: 'none' }}
+            title={aiPanelOpen ? 'Hide AI Co-Pilot' : 'Show AI Co-Pilot'}
+          >
+            <span style={{ fontSize: '0.9rem' }}>🤖</span>
+            <span
+              className="font-mono"
+              style={{
+                fontSize:    '0.42rem',
+                letterSpacing: '0.1em',
+                writingMode: 'vertical-rl',
+                transform:   'rotate(180deg)',
+                textTransform: 'uppercase',
+                color:       'var(--color-muted)',
+                marginTop:   '2px',
+              }}
+            >
+              {t.is ? 'Co-Pilot' : 'CO-PILOT'}
+            </span>
+            <span className="font-bold" style={{ fontSize: '0.75rem' }}>
+              {aiPanelOpen ? '›' : '‹'}
+            </span>
+          </button>
+
           {/* Mobile bottom bar */}
           <div className="absolute bottom-0 left-0 right-0 lg:hidden
             flex items-center justify-between
@@ -232,8 +263,15 @@ export default function ArenaScreen() {
           </div>
         </div>
 
-        {/* AI panel — right, desktop only */}
-        <div className="hidden lg:flex w-64 xl:w-72 shrink-0 flex-col overflow-y-auto">
+        {/* AI panel — right, desktop only, collapsible via toggle tab */}
+        <div
+          className="hidden lg:flex shrink-0 flex-col overflow-y-auto overflow-x-hidden"
+          style={{
+            width:      aiPanelOpen ? '17rem' : '0px',
+            minWidth:   '0px',
+            transition: 'width 0.28s ease',
+          }}
+        >
           <AIPanel />
         </div>
       </div>

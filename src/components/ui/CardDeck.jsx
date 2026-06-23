@@ -45,12 +45,41 @@ export default function CardDeck({ cards, onCardVisit }) {
     return { x: -26, y: 18, rotate: -8, scale: 0.92, opacity: 0.5, zIndex: 20, filter: 'brightness(0.85)' }
   }
 
-  // ── apply resting positions on mount ──────────────────────────────────────
+  // ── apply resting positions on mount + play a one-time swipe-hint ───────────
   useEffect(() => {
     cardRefs.current.forEach((el, i) => {
       if (!el) return
       gsap.set(el, slot(relOffset(i)))
     })
+
+    // ── Swipe-hint: after 1.2 s nudge the active card so users discover
+    //    that the deck is swipeable — plays exactly once on mount. ──────────
+    const hintTimer = setTimeout(() => {
+      const activeEl = cardRefs.current[0]
+      const peekEl   = cardRefs.current[1]   // the right-peek card
+      if (!activeEl) return
+
+      const tl = gsap.timeline()
+      // nudge active card left, tilt slightly
+      tl.to(activeEl, { x: -22, rotate: -3, duration: 0.38, ease: 'power2.out' })
+      // simultaneously pull the right-peek card toward center (preview effect)
+      if (peekEl) {
+        tl.to(peekEl,
+          { x: slot(1).x * 0.35, scale: 0.97, opacity: 0.72, duration: 0.38, ease: 'power2.out' },
+          0
+        )
+      }
+      // spring back to rest
+      tl.to(activeEl, { x: 0, rotate: 0, duration: 0.55, ease: 'back.out(2.2)' })
+      if (peekEl) {
+        tl.to(peekEl,
+          { ...slot(1), duration: 0.55, ease: 'back.out(2.2)' },
+          '-=0.45'
+        )
+      }
+    }, 1200)
+
+    return () => clearTimeout(hintTimer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

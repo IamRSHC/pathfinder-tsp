@@ -24,7 +24,7 @@ const THEME_COLORS = {
   },
 }
 
-const HIT_RADIUS = 28
+const HIT_RADIUS = 36   // enlarged for reliable tap targets at any zoom level
 
 export function usePixiGame(containerRef) {
   const appRef       = useRef(null)
@@ -38,7 +38,7 @@ export function usePixiGame(containerRef) {
   const isPanningRef     = useRef(false)            // true while a mouse-drag pan is active
 
   const { nodes, humanEdges, aiEdges, gamePhase, startNode, difficulty,
-          nodeSource, standardSize, customRaw,
+          nodeSource, standardSize, customRaw, mode,
           setNodes, addHumanEdge, setStartNode } = useGameStore()
   const { suggestion, requestSuggestion, pheromoneEdges, acoPhase } = useAiStore()
   const { theme, showNotification } = useUiStore()
@@ -162,17 +162,16 @@ export function usePixiGame(containerRef) {
         nodeDownStagePos.current = { x: app.stage.x, y: app.stage.y }
       })
       cont.on('pointerup', () => {
-        // Guard 1 — Multi-touch: if 2+ fingers were ever on screen during
-        // this interaction, it was a pinch/zoom — never a node tap.
-        // multiTouchRef is set synchronously in touchstart (before this fires).
-        // Desktop: touchstart never fires → multiTouchRef always false → no impact.
+        // Guard 1 — Multi-touch: pinch/zoom → never a node tap.
         if (multiTouchRef.current) return
 
-        // Guard 2 — Single-finger pan: if the stage moved > 10px since
-        // pointerdown, the user was panning, not tapping.
-        const dx = Math.abs(app.stage.x - nodeDownStagePos.current.x)
-        const dy = Math.abs(app.stage.y - nodeDownStagePos.current.y)
-        if (dx > 10 || dy > 10) return
+        // Guard 2 — Pan detection: normalize stage delta by current zoom scale
+        // so the threshold is consistent in world-space at every zoom level.
+        // Example: at 3× zoom a 45px stage move = only 15 world-px → still a tap.
+        const scale = app.stage.scale.x
+        const dx = Math.abs(app.stage.x - nodeDownStagePos.current.x) / scale
+        const dy = Math.abs(app.stage.y - nodeDownStagePos.current.y) / scale
+        if (dx > 15 || dy > 15) return
 
         handleNodeClick(idx)
       })
@@ -183,6 +182,8 @@ export function usePixiGame(containerRef) {
   }, [nodes, theme, startNode])
 
   // ── Redraw edges ──────────────────────────────────────────────────────
+  // In Solo Run mode AI edges are intentionally hidden so the player
+  // can't follow the AI's path — they must think for themselves.
   useEffect(() => {
     const gfx = edgesGfxRef.current
     if (!gfx || !nodes.length) return
@@ -192,12 +193,14 @@ export function usePixiGame(containerRef) {
       gfx.moveTo(nodes[from].x, nodes[from].y)
       gfx.lineTo(nodes[to].x, nodes[to].y)
     })
-    aiEdges.forEach(({ from, to }) => {
-      gfx.lineStyle(theme === 'serene' ? 1.5 : 2, C.aiEdge, theme === 'serene' ? 0.55 : 0.6)
-      gfx.moveTo(nodes[from].x, nodes[from].y)
-      gfx.lineTo(nodes[to].x, nodes[to].y)
-    })
-  }, [humanEdges, aiEdges, nodes, theme])
+    if (mode !== 'solo') {
+      aiEdges.forEach(({ from, to }) => {
+        gfx.lineStyle(theme === 'serene' ? 1.5 : 2, C.aiEdge, theme === 'serene' ? 0.55 : 0.6)
+        gfx.moveTo(nodes[from].x, nodes[from].y)
+        gfx.lineTo(nodes[to].x, nodes[to].y)
+      })
+    }
+  }, [humanEdges, aiEdges, nodes, theme, mode])
 
   // ── Pheromone overlay ─────────────────────────────────────────────────
   // Drawn between edge layer and suggestion layer.
@@ -423,7 +426,22 @@ export function usePixiGame(containerRef) {
         panStartY   = e.touches[0].clientY
         stageStartX = app.stage.x
         stageStartY = app.stage.y
-      } else if (e.touches.length >= 2) {
+      } else if (e.touches.length === 3) {
+        // ── 3-finger panel gesture ────────────────────────────────────────
+        // Left third of screen  → open Statistics drawer
+        // Right third of screen → open AI Co-Pilot drawer
+        mode = 'idle'   // block any panning
+        multiTouchRef.current = true
+        const avgX = (
+          e.touches[0].clientX + e.touches[1].clientX + e.touches[2].clientX
+        ) / 3
+        const vw = window.innerWidth
+        if (avgX < vw * 0.33) {
+          useUiStore.getState().openDrawer('stats')
+        } else if (avgX > vw * 0.67) {
+          useUiStore.getState().openDrawer('ai')
+        }
+      } else if (e.touches.length === 2) {
         // Two fingers: switch to pinch-zoom mode
         // Also set the multi-touch guard immediately so node pointerup is ignored
         multiTouchRef.current = true
@@ -460,7 +478,9 @@ export function usePixiGame(containerRef) {
 
         // ── Zoom: scale relative to pinch midpoint ─────────────────────
         const dist     = touchDist(e.touches)
-        const newScale = Math.max(0.25, Math.min(6,
+        // MIN 1.0 = the default view — users can only zoom IN, never zoom out
+        // past the grid size they see when first entering the Arena.
+        const newScale = Math.max(1.0, Math.min(6,
           pinchStartScale * (dist / pinchStartDist)
         ))
         const ratio    = newScale / app.stage.scale.x

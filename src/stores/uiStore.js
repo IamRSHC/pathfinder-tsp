@@ -8,11 +8,14 @@ export const useUiStore = create((set) => ({
   notification:     null,
   theme:            'cyber',
   viewMode:         '2d',   // '2d' | '3d'
+  aiPanelOpen:      false,  // desktop AI panel — hidden by default, toggled by user
 
   toggleDrawer:       ()    => set(s => ({ mobileDrawerOpen: !s.mobileDrawerOpen })),
   openDrawer:         (tab) => set({ mobileDrawerOpen: true, activeDrawerTab: tab }),
   closeDrawer:        ()    => set({ mobileDrawerOpen: false }),
   setActiveDrawerTab: (tab) => set({ activeDrawerTab: tab }),
+
+  toggleAiPanel: () => set(s => ({ aiPanelOpen: !s.aiPanelOpen })),
 
   showNotification: (msg, type = 'info') => {
     set({ notification: { msg, type, id: Date.now() } })
