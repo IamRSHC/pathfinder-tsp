@@ -30,6 +30,7 @@ const THEME3D = {
     nodeMat:     { color: 0x003344,  emissive: 0x00e5ff, emissiveIntensity: 1.0 },
     nodeHover:   { color: 0x005566,  emissive: 0x00e5ff, emissiveIntensity: 2.0 },
     nodeSelect:  { color: 0x004455,  emissive: 0x00ffff, emissiveIntensity: 2.8 },
+    currentNode: { color: 0x003322,  emissive: 0x00ff80, emissiveIntensity: 2.8 },
     humanEdge:   0x00e5ff,
     humanAlpha:  0.90,
     aiEdge:      0xffab00,
@@ -38,6 +39,7 @@ const THEME3D = {
     sugAlpha:    0.85,
     startNode:   { color: 0x332200, emissive: 0xffd700, emissiveIntensity: 2.2 },
     startRing:   0xffd700,
+    currentRing: 0x00ff80,
     labelColor:  '#00e5ff',
     labelShadow: '#003355',
     startColor:  '#ffd700',
@@ -59,14 +61,16 @@ const THEME3D = {
     nodeMat:     { color: 0xd4ece2,  emissive: 0x2D6A4F, emissiveIntensity: 0.4 },
     nodeHover:   { color: 0xb8dece,  emissive: 0x2D6A4F, emissiveIntensity: 0.9 },
     nodeSelect:  { color: 0xa0d0be,  emissive: 0x2D6A4F, emissiveIntensity: 1.3 },
+    currentNode: { color: 0xd0e8f0,  emissive: 0x1B5E8A, emissiveIntensity: 1.6 },
     humanEdge:   0x2D6A4F,
     humanAlpha:  0.80,
-    aiEdge:      0xB5838D,
-    aiAlpha:     0.70,
+    aiEdge:      0x4A3B8C,  // deep indigo — visible on cream, distinct from green
+    aiAlpha:     0.90,
     sugEdge:     0x6D6875,
     sugAlpha:    0.75,
     startNode:   { color: 0x3d1a00, emissive: 0xE07B39, emissiveIntensity: 1.6 },
     startRing:   0xE07B39,
+    currentRing: 0x1B5E8A,
     labelColor:  '#2D6A4F',
     labelShadow: '#E8F5EE',
     startColor:  '#E07B39',
@@ -164,10 +168,10 @@ export function useThreeGame(containerRef) {
   const tickRef       = useRef(0)
 
   const {
-    nodes, humanEdges, aiEdges, gamePhase, startNode,
+    nodes, humanEdges, gamePhase, startNode,
     setNodes, addHumanEdge, setStartNode,
   } = useGameStore()
-  const { suggestion, requestSuggestion } = useAiStore()
+  const { suggestion, requestSuggestion, aiRevealedEdges } = useAiStore()
   const { theme } = useUiStore()
   const C = THEME3D[theme] || THEME3D.cyber
 
@@ -364,7 +368,7 @@ export function useThreeGame(containerRef) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { rebuildNodes() }, [nodes, startNode, theme]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { rebuildEdges() }, [humanEdges, aiEdges, theme]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { rebuildEdges() }, [humanEdges, aiRevealedEdges, theme]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Suggestion overlay ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -409,7 +413,8 @@ export function useThreeGame(containerRef) {
     if (!group || !scene) return
     group.clear()
 
-    const { nodes: ns, humanEdges: he, aiEdges: ae } = useGameStore.getState()
+    const { nodes: ns, humanEdges: he } = useGameStore.getState()
+    const { aiRevealedEdges: ae }        = useAiStore.getState()
     const { theme: th } = useUiStore.getState()
     const TC  = THEME3D[th] || THEME3D.cyber
     if (!ns.length) return
@@ -537,6 +542,9 @@ export function useThreeGame(containerRef) {
 
     if (state.gamePhase === 'placing') {
       setStartNode(idx)
+      // Rotate the AI's precomputed tour so it starts from the same node
+      // as the human. TSP tours are cyclic — quality is unchanged.
+      useAiStore.getState().lockTourFromStartNode(idx)
       return
     }
     if (state.gamePhase !== 'routing') return
@@ -559,6 +567,13 @@ export function useThreeGame(containerRef) {
     applyNodeState(prev, 'normal')
     applyNodeState(idx, 'flash')
     selectedIdxRef.current = -1
+
+    // Chess-style AI reveal: after human makes a move in copilot/VS modes,
+    // expose the AI's corresponding step from its precomputed solution.
+    if (state.mode !== 'solo') {
+      useAiStore.getState().revealNextAiMove()
+    }
+
     useAiStore.getState().requestSuggestion(ns, useGameStore.getState().humanEdges)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

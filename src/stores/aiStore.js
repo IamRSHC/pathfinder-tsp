@@ -83,10 +83,14 @@ export const useAiStore = create((set, get) => ({
   suggestion:    null,
   overrideCount: 0,
 
-  // AI path
-  aiPathLength:  0,
-  aiEdges:       [],
-  nnLength:      0,    // NN+2-Opt baseline length
+  // AI path — full solution is private; only aiRevealedEdges is drawn on canvas
+  aiPathLength:    0,
+  aiEdges:         [],   // complete computed solution (never drawn directly — updated by ACO)
+  lockedAiEdges:   [],   // snapshot rotated to human's start node — used for step-by-step reveal
+  aiStartNode:     -1,   // the human's chosen start node (-1 until they pick one)
+  aiRevealedEdges: [],   // subset shown on canvas — grows 1 edge per human move
+  revealedCount:   0,    // how many AI moves have been unveiled so far
+  nnLength:        0,    // NN+2-Opt baseline length
 
   // ACO state
   acoPhase:      'idle',    // 'idle' | 'running' | 'done'
@@ -306,21 +310,74 @@ export const useAiStore = create((set, get) => ({
 
   setAiPath: (edges, length) => set({ aiEdges: edges, aiPathLength: length }),
 
+  // ── Lock tour to human start node ────────────────────────────────────────
+  // Called the moment the human clicks their start node (placing → routing).
+  // TSP tours are cyclic, so rotating the tour to start from startNode costs
+  // the AI nothing — the optimal distance is the same; we just re-index.
+  // This snapshot (lockedAiEdges) is what the chess-style reveal steps through.
+  // aiEdges keeps updating from ACO for the final results comparison.
+  lockTourFromStartNode: (startNode) => {
+    const { aiEdges } = get()
+    if (!aiEdges.length) {
+      set({ aiStartNode: startNode })
+      return
+    }
+    // Every node appears exactly once as 'from' in a valid Hamiltonian tour.
+    const offset = aiEdges.findIndex(e => e.from === startNode)
+    const rotated = offset <= 0
+      ? aiEdges
+      : [...aiEdges.slice(offset), ...aiEdges.slice(0, offset)]
+    set(s => ({
+      aiStartNode:   startNode,
+      lockedAiEdges: rotated,
+      reasoningLog:  [
+        { id: Date.now(), text: `Tour locked from node ${startNode}. Same start as human.`, type: 'info' },
+        ...s.reasoningLog,
+      ].slice(0, 14),
+    }))
+  },
+
+  // ── Reveal one AI move (called after each human edge in copilot/VS modes) ──
+  // Chess-style: human moves first, then AI reveals its corresponding step.
+  // Uses lockedAiEdges (rotated to human's start node) so the comparison is fair.
+  revealNextAiMove: () => {
+    const { lockedAiEdges, revealedCount } = get()
+    if (!lockedAiEdges.length || revealedCount >= lockedAiEdges.length) return
+    const nextEdge = lockedAiEdges[revealedCount]
+    if (!nextEdge) return
+    set(s => ({
+      aiRevealedEdges: [...s.aiRevealedEdges, nextEdge],
+      revealedCount:   s.revealedCount + 1,
+      reasoningLog: [
+        {
+          id:   Date.now(),
+          text: `AI move ${s.revealedCount + 1}: ${nextEdge.from}→${nextEdge.to}`,
+          type: 'suggest',
+        },
+        ...s.reasoningLog,
+      ].slice(0, 14),
+    }))
+  },
+
   reset: () => {
     stopWorker()
     set({
-      confidence:    50,
-      suggestion:    null,
-      overrideCount: 0,
-      aiPathLength:  0,
-      aiEdges:       [],
-      nnLength:      0,
-      acoPhase:      'idle',
-      acoIteration:  0,
-      acoMaxIter:    0,
-      pheromoneEdges: [],
-      isThinking:    false,
-      reasoningLog:  [{ id: Date.now(), text: 'System ready.', type: 'info' }],
+      confidence:      50,
+      suggestion:      null,
+      overrideCount:   0,
+      aiPathLength:    0,
+      aiEdges:         [],
+      lockedAiEdges:   [],
+      aiStartNode:     -1,
+      aiRevealedEdges: [],
+      revealedCount:   0,
+      nnLength:        0,
+      acoPhase:        'idle',
+      acoIteration:    0,
+      acoMaxIter:      0,
+      pheromoneEdges:  [],
+      isThinking:      false,
+      reasoningLog:    [{ id: Date.now(), text: 'System ready.', type: 'info' }],
     })
   },
 }))

@@ -10,6 +10,7 @@ export default function AIPanel({ className = '' }) {
     reasoningLog, acoPhase, acoIteration, acoMaxIter,
     aiPathLength, nnLength, pheromoneEdges,
     acceptSuggestion, rejectSuggestion, handoffSegment,
+    revealedCount, aiStartNode,
   } = useAiStore()
   const { nodes, humanEdges, mode } = useGameStore()
   const { showNotification, theme } = useUiStore()
@@ -113,8 +114,32 @@ export default function AIPanel({ className = '' }) {
           </div>
         )}
 
-        {/* Path quality rows */}
-        {nnLength > 0 && (
+        {/* AI moves revealed counter (copilot / VS modes only) — chess-style progress */}
+        {mode !== 'solo' && (
+          <div className="space-y-1">
+            {aiStartNode >= 0 && (
+              <div className="flex justify-between items-center">
+                <span className="font-mono text-game-muted" style={{ fontSize: '0.6rem' }}>
+                  {t.is ? 'ai start node' : 'AI START NODE'}
+                </span>
+                <span className="font-mono text-xs font-bold text-game-green">
+                  ★ {aiStartNode} <span className="text-game-muted font-normal" style={{ fontSize: '0.6rem' }}>(same as you)</span>
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between items-center">
+              <span className="font-mono text-game-muted" style={{ fontSize: '0.6rem' }}>
+                {t.is ? 'ai moves revealed' : 'AI MOVES REVEALED'}
+              </span>
+              <span className={`font-mono text-xs font-bold ${revealedCount > 0 ? 'text-game-amber' : 'text-game-muted'}`}>
+                {revealedCount}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Path quality rows — hidden in Solo mode to prevent solution spoilers */}
+        {nnLength > 0 && mode !== 'solo' && (
           <div className="space-y-1">
             <div className="flex justify-between items-center">
               <span className="font-mono text-game-muted" style={{ fontSize: '0.6rem' }}>

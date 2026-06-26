@@ -258,7 +258,7 @@ export default function ArenaScreen() {
               {gamePhase === 'routing'
                 ? (viewMode === '3d'
                   ? (t.is ? 'drag·orbit  pinch·zoom' : 'DRAG·ORBIT  PINCH·ZOOM')
-                  : (t.is ? 'tap to select & connect' : 'TAP TO SELECT & CONNECT'))
+                  : (t.is ? 'drag·pan  pinch·zoom  tap·connect' : 'DRAG·PAN  PINCH·ZOOM  TAP·CONNECT'))
                 : `${nodes.length || difficulty} ${t.is ? 'nodes' : 'NODES'}`}
             </div>
             <button

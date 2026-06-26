@@ -13,13 +13,15 @@ const THEME_COLORS = {
     node: 0x00e5ff, humanEdge: 0x00e5ff, aiEdge: 0xffab00,
     contested: 0xd500f9, nodeInner: 0x090d14, nodeFill: 0x00e5ff,
     startNode: 0xffd700, startGlow: 0xffa500,
+    currentNode: 0x00ff80, currentGlow: 0x00cc55,  // neon spring green — distinct from suggestion purple
     glowAlpha: { min: 0.15, range: 0.12 }, pulseScale: { min: 1, range: 0.08 },
   },
   serene: {
     bg: 0xF5F3EF, grid: { r: 180, g: 170, b: 155, a: 0.18 },
-    node: 0x2D6A4F, humanEdge: 0x2D6A4F, aiEdge: 0xB5838D,
+    node: 0x2D6A4F, humanEdge: 0x2D6A4F, aiEdge: 0x4A3B8C,  // deep indigo — visible on cream
     contested: 0x6D6875, nodeInner: 0xF5F3EF, nodeFill: 0x2D6A4F,
     startNode: 0xE07B39, startGlow: 0xE07B39,
+    currentNode: 0x1B5E8A, currentGlow: 0x0D7A9E,  // deep ocean blue — "you are here"
     glowAlpha: { min: 0.06, range: 0.05 }, pulseScale: { min: 1, range: 0.03 },
   },
 }
@@ -36,11 +38,15 @@ export function usePixiGame(containerRef) {
   const nodeDownStagePos = useRef({ x: 0, y: 0 })  // stage position at last pointerdown
   const multiTouchRef    = useRef(false)            // true when 2+ fingers are/were on screen
   const isPanningRef     = useRef(false)            // true while a mouse-drag pan is active
+  const currentNodeRef    = useRef(-1)              // node the player is currently "at"
+  const pointerPosRef     = useRef({ x: 0, y: 0 }) // world-space cursor at last pointerdown
+  const prevNodeCountRef  = useRef(0)               // detects new-game spawns for auto-fit
 
-  const { nodes, humanEdges, aiEdges, gamePhase, startNode, difficulty,
+  const { nodes, humanEdges, gamePhase, startNode, difficulty,
           nodeSource, standardSize, customRaw, mode,
           setNodes, addHumanEdge, setStartNode } = useGameStore()
-  const { suggestion, requestSuggestion, pheromoneEdges, acoPhase } = useAiStore()
+  const { suggestion, requestSuggestion, pheromoneEdges, acoPhase,
+          aiRevealedEdges } = useAiStore()
   const { theme, showNotification } = useUiStore()
   const C = THEME_COLORS[theme] || THEME_COLORS.cyber
 
@@ -148,6 +154,17 @@ export function usePixiGame(containerRef) {
 
       cont.addChild(glow, circle, inner, label)
 
+      // ── "You are here" ring — hidden until this node becomes current ──
+      const currentRing = new PIXI.Graphics()
+      currentRing.lineStyle(2, C.currentNode, 0)           // alpha 0 = hidden
+      currentRing.drawCircle(0, 0, 22)
+      currentRing.name = 'currentRing'
+      const currentRing2 = new PIXI.Graphics()
+      currentRing2.lineStyle(1, C.currentGlow, 0)
+      currentRing2.drawCircle(0, 0, 28)
+      currentRing2.name = 'currentRing2'
+      cont.addChild(currentRing, currentRing2)
+
       cont.on('pointerover', () => {
         hoveredRef.current = idx; circle.tint = 0xffffff
         glow.alpha = theme === 'serene' ? 0.4 : 1
@@ -156,10 +173,14 @@ export function usePixiGame(containerRef) {
         hoveredRef.current = -1; circle.tint = 0xffffff
         if (selectedRef.current !== idx) glow.alpha = theme === 'serene' ? 0.1 : 0.25
       })
-      cont.on('pointerdown', () => {
+      cont.on('pointerdown', (e) => {
         // Record stage position at the moment of touch/click down.
         // Used in pointerup to distinguish a tap from a pan gesture.
         nodeDownStagePos.current = { x: app.stage.x, y: app.stage.y }
+        // Record world-space cursor position so nearest-node resolution works
+        // correctly even when two nodes have overlapping hit areas.
+        const wp = e.data.getLocalPosition(app.stage)
+        pointerPosRef.current = { x: wp.x, y: wp.y }
       })
       cont.on('pointerup', () => {
         // Guard 1 — Multi-touch: pinch/zoom → never a node tap.
@@ -173,13 +194,46 @@ export function usePixiGame(containerRef) {
         const dy = Math.abs(app.stage.y - nodeDownStagePos.current.y) / scale
         if (dx > 15 || dy > 15) return
 
-        handleNodeClick(idx)
+        // Nearest-node resolution — override PIXI's z-order dispatch.
+        // PIXI fires the event on the topmost container (highest z = last added),
+        // so dense clusters (e.g. nodes 10 and 23) always misfire to the later node.
+        // Fix: find the node geometrically closest to the actual tap world position.
+        const ns = useGameStore.getState().nodes
+        const { x: px, y: py } = pointerPosRef.current
+        let nearest = idx
+        let nearestDist = Infinity
+        ns.forEach((n, i) => {
+          const d = (n.x - px) ** 2 + (n.y - py) ** 2
+          if (d < nearestDist) { nearestDist = d; nearest = i }
+        })
+
+        handleNodeClick(nearest)
       })
 
       app.stage.addChild(cont)
       nodesGfxRef.current.push(cont)
     })
+
+    // Re-apply "you are here" indicator if a node was already current
+    // (survives theme changes and node re-renders)
+    if (currentNodeRef.current >= 0) setCurrentNode(currentNodeRef.current)
   }, [nodes, theme, startNode])
+
+  // ── Auto-fit view on new node spawn ──────────────────────────────────
+  // Fires when nodes.length changes (new game / difficulty change).
+  // A small timeout lets PIXI commit the new canvas dimensions first.
+  // Does NOT fire on theme / startNode changes (same node count).
+  useEffect(() => {
+    const app = appRef.current
+    if (!app || !nodes.length) return
+    if (nodes.length === prevNodeCountRef.current) return  // theme/startNode only
+    prevNodeCountRef.current = nodes.length
+    const t = setTimeout(() => {
+      const a = appRef.current
+      if (a) fitNodesToView(a, nodes)
+    }, 80)
+    return () => clearTimeout(t)
+  }, [nodes])
 
   // ── Redraw edges ──────────────────────────────────────────────────────
   // In Solo Run mode AI edges are intentionally hidden so the player
@@ -197,17 +251,20 @@ export function usePixiGame(containerRef) {
     })
     const currentMode = useGameStore.getState().mode
     if (currentMode !== 'solo') {
-      aiEdges.forEach(({ from, to }) => {
-        gfx.lineStyle(theme === 'serene' ? 1.5 : 2, C.aiEdge, theme === 'serene' ? 0.55 : 0.6)
+      // Draw only the AI edges that have been revealed so far (chess-style step reveal).
+      // aiRevealedEdges grows by 1 after each human move; the full solution stays hidden.
+      aiRevealedEdges.forEach(({ from, to }) => {
+        // Serene: wider + higher alpha so the deep-indigo line reads clearly on cream
+        gfx.lineStyle(theme === 'serene' ? 2.5 : 2, C.aiEdge, theme === 'serene' ? 0.9 : 0.6)
         gfx.moveTo(nodes[from].x, nodes[from].y)
         gfx.lineTo(nodes[to].x, nodes[to].y)
       })
     }
-  }, [humanEdges, aiEdges, nodes, theme, mode])
+  }, [humanEdges, aiRevealedEdges, nodes, theme, mode])
 
   // ── Pheromone overlay ─────────────────────────────────────────────────
-  // Drawn between edge layer and suggestion layer.
-  // Amber trails for cyber, dusty rose for serene — varying alpha by strength.
+  // Hidden during gameplay so it doesn't reveal the AI solution path.
+  // Only rendered after the game is complete (post-game analysis view).
   useEffect(() => {
     const app = appRef.current
     if (!app) return
@@ -215,6 +272,10 @@ export function usePixiGame(containerRef) {
     if (!gfx) return
     gfx.clear()
     if (!nodes.length || !pheromoneEdges.length) return
+
+    // Block while player is still routing — pheromone strength reveals the solution
+    const { gamePhase: gp } = useGameStore.getState()
+    if (gp !== 'complete') return
 
     const isCyber = theme !== 'serene'
     // Base colour: amber for cyber, muted rose for serene
@@ -248,31 +309,36 @@ export function usePixiGame(containerRef) {
     sugGfx.drawCircle(nodes[to].x, nodes[to].y, 16)
   }, [suggestion, nodes, theme])
 
-  // ── Shared clamp helper ───────────────────────────────────────────────
-  // Prevents panning into blank space outside the canvas world when zoomed in.
-  // When zoomed OUT (scale < 1) the world is smaller than the viewport, so we
-  // centre it instead of clamping to an edge.
+  // ── Shared clamp helper — Google Maps-style soft bounds ──────────────
+  // Allows generous pan freedom so ALL nodes are always reachable.
+  //
+  // The core fix: the old formula clamped to exactly [vw-ww, 0], which at
+  // scale=1.0 (ww=vw) collapsed to [0,0] — a hard lock that prevented any
+  // panning at the default zoom level, making off-screen nodes unreachable.
+  //
+  // New formula adds MARGIN in each direction:
+  //   stage.x ∈ [vw - ww - mx,  mx]
+  //
+  // At scale=1.0: stage.x ∈ [-mx, mx] → free panning ±30% of viewport.
+  // At scale>1.0: same formula, extended by the same margin on both sides.
+  // This mirrors Google Maps behaviour — content can overshoot the viewport
+  // edge by a fixed amount, giving an "infinite canvas" feel.
   function clampStage(app) {
     const sc = app.stage.scale.x
     const pr = window.devicePixelRatio || 1
     const vw = app.view.width  / pr
     const vh = app.view.height / pr
-    const ww = vw * sc   // world width in screen pixels
-    const wh = vh * sc
+    const ww = vw * sc   // world width  in screen pixels at current zoom
+    const wh = vh * sc   // world height in screen pixels at current zoom
 
-    if (ww <= vw) {
-      // World fits inside viewport horizontally → centre it
-      app.stage.x = (vw - ww) / 2
-    } else {
-      // World is wider than viewport → clamp so edges don't show blank space
-      app.stage.x = Math.max(vw - ww, Math.min(0, app.stage.x))
-    }
+    // Pan overshoot margin: world edge may travel this far past the viewport
+    // edge in either direction. Ensures edge-nodes are always reachable and
+    // gives the "infinite canvas" feel even at the default 1× zoom.
+    const mx = Math.max(vw * 0.30, 80)   // ≥ 80 px horizontal
+    const my = Math.max(vh * 0.35, 120)  // ≥ 120 px vertical (bottom-bar clearance)
 
-    if (wh <= vh) {
-      app.stage.y = (vh - wh) / 2
-    } else {
-      app.stage.y = Math.max(vh - wh, Math.min(0, app.stage.y))
-    }
+    app.stage.x = Math.max(vw - ww - mx, Math.min(mx, app.stage.x))
+    app.stage.y = Math.max(vh - wh - my, Math.min(my, app.stage.y))
   }
 
   // ── Desktop: mouse-wheel zoom + drag-to-pan ───────────────────────────
@@ -284,10 +350,9 @@ export function usePixiGame(containerRef) {
     if (!app) return
     const canvas = app.view
 
-    // Zoom-out floor = 1.0 (the natural/default canvas scale).
-    // Users can zoom IN freely up to 6×, but can never zoom out past the
-    // original grid size they see when first entering the Arena.
-    const MIN_SCALE = 1.0
+    // Zoom-out floor = 0.5 (allows seeing the full node field on any screen).
+    // Users can zoom IN freely up to 6×.
+    const MIN_SCALE = 0.5
     const MAX_SCALE = 6
 
     // Hint to the user that the canvas is pannable (Google Maps style)
@@ -368,11 +433,19 @@ export function usePixiGame(containerRef) {
     // Suppress the context menu so right-click-drag works cleanly
     function onContextMenu(e) { e.preventDefault() }
 
+    // Double-click to fit all nodes (mirrors mobile double-tap)
+    function onDblClick(e) {
+      e.preventDefault()
+      const ns = useGameStore.getState().nodes
+      fitNodesToView(app, ns)
+    }
+
     canvas.addEventListener('wheel',       onWheel,       { passive: false })
     canvas.addEventListener('mousedown',   onMouseDown)
     window.addEventListener('mousemove',   onMouseMove)   // on window so drag works if cursor leaves canvas
     window.addEventListener('mouseup',     onMouseUp)
     canvas.addEventListener('contextmenu', onContextMenu)
+    canvas.addEventListener('dblclick',    onDblClick)
 
     return () => {
       canvas.style.cursor = ''
@@ -381,6 +454,7 @@ export function usePixiGame(containerRef) {
       window.removeEventListener('mousemove',   onMouseMove)
       window.removeEventListener('mouseup',     onMouseUp)
       canvas.removeEventListener('contextmenu', onContextMenu)
+      canvas.removeEventListener('dblclick',    onDblClick)
     }
   }, []) // stable — only needs the canvas ref, not node/theme state
 
@@ -422,6 +496,11 @@ export function usePixiGame(containerRef) {
 
     // ── touchstart ────────────────────────────────────────────────────────
     function onTouchStart(e) {
+      // Prevent browser pan/zoom on iOS — belt-and-suspenders alongside
+      // the touchAction:'none' CSS. Without this, Safari may claim the
+      // gesture before our first touchmove fires.
+      e.preventDefault()
+
       if (e.touches.length === 1) {
         // Single finger: begin potential pan (or tap if barely moves)
         mode        = 'pan'
@@ -504,8 +583,22 @@ export function usePixiGame(containerRef) {
 
     // ── touchend / touchcancel ─────────────────────────────────────────────
     let multiTouchResetTimer = null
+    let lastTapTime = 0  // for double-tap detection
+
     function onTouchEnd(e) {
       const remaining = e.touches.length
+
+      // ── Double-tap to fit all nodes ───────────────────────────────────
+      // Fires when a single finger is lifted and the previous tap was
+      // within 300 ms — mirrors the Google Maps double-tap-to-fit gesture.
+      if (remaining === 0 && e.changedTouches.length === 1 && mode !== 'pinch') {
+        const now = Date.now()
+        if (now - lastTapTime < 300) {
+          const ns = useGameStore.getState().nodes
+          fitNodesToView(app, ns)
+        }
+        lastTapTime = now
+      }
 
       if (remaining === 0) {
         mode = 'idle'
@@ -526,7 +619,8 @@ export function usePixiGame(containerRef) {
       }
     }
 
-    canvas.addEventListener('touchstart',  onTouchStart,  { passive: true  })
+    // passive:false on touchstart so e.preventDefault() is honoured on iOS
+    canvas.addEventListener('touchstart',  onTouchStart,  { passive: false })
     canvas.addEventListener('touchmove',   onTouchMove,   { passive: false })
     canvas.addEventListener('touchend',    onTouchEnd,    { passive: true  })
     canvas.addEventListener('touchcancel', onTouchEnd,    { passive: true  })
@@ -564,6 +658,11 @@ export function usePixiGame(containerRef) {
     // ── PLACING phase: pick the start node ────────────────────────────
     if (state.gamePhase === 'placing') {
       setStartNode(idx)
+      // Rotate the AI's precomputed tour so it starts from the same node
+      // as the human. TSP tours are cyclic — quality is unchanged.
+      useAiStore.getState().lockTourFromStartNode(idx)
+      // Mark start node as current position ("you are here")
+      setCurrentNode(idx)
       // Re-render nodes to show the star
       return
     }
@@ -616,6 +715,16 @@ export function usePixiGame(containerRef) {
     highlightNode(prev, false)
     selectedRef.current = -1
 
+    // Move "you are here" indicator to the newly connected-to node
+    setCurrentNode(idx)
+
+    // Chess-style AI reveal: after human makes a move in copilot/VS modes,
+    // expose the AI's corresponding step from its precomputed solution.
+    const currentGameMode = useGameStore.getState().mode
+    if (currentGameMode !== 'solo') {
+      useAiStore.getState().revealNextAiMove()
+    }
+
     const { requestSuggestion } = useAiStore.getState()
     requestSuggestion(nodes, useGameStore.getState().humanEdges)
   }, [])
@@ -626,6 +735,46 @@ export function usePixiGame(containerRef) {
     const glow = c.getChildByName('glow')
     const { theme: th } = useUiStore.getState()
     if (glow) glow.alpha = on ? (th === 'serene' ? 0.5 : 1) : (th === 'serene' ? 0.1 : 0.25)
+  }
+
+  // ── "You are here" indicator ─────────────────────────────────────────────
+  // Shows which node the player is currently positioned at (their path tail).
+  // The ring shifts to the new node after each edge is committed.
+  function setCurrentNode(idx) {
+    const { theme: th } = useUiStore.getState()
+    const TC = THEME_COLORS[th] || THEME_COLORS.cyber
+
+    // Remove indicator from old node
+    const old = currentNodeRef.current
+    if (old >= 0 && old !== idx) {
+      const oc = nodesGfxRef.current[old]
+      if (oc) {
+        const r1 = oc.getChildByName('currentRing')
+        const r2 = oc.getChildByName('currentRing2')
+        if (r1) r1.alpha = 0
+        if (r2) r2.alpha = 0
+      }
+    }
+
+    // Apply indicator to new node
+    const c = nodesGfxRef.current[idx]
+    if (c) {
+      const r1 = c.getChildByName('currentRing')
+      const r2 = c.getChildByName('currentRing2')
+      if (r1) {
+        r1.clear()
+        r1.lineStyle(th === 'serene' ? 2 : 2.5, TC.currentNode, th === 'serene' ? 0.85 : 0.9)
+        r1.drawCircle(0, 0, 22)
+        r1.alpha = 1
+      }
+      if (r2) {
+        r2.clear()
+        r2.lineStyle(1, TC.currentGlow, th === 'serene' ? 0.3 : 0.4)
+        r2.drawCircle(0, 0, 29)
+        r2.alpha = 1
+      }
+    }
+    currentNodeRef.current = idx
   }
 
   // ── Spawn nodes (called from GameCanvas) ──────────────────────────────
@@ -655,15 +804,56 @@ export function usePixiGame(containerRef) {
     setNodes(newNodes)
   }, [])
 
-  return { spawnNodes }
+  // ── Reset / fit-to-nodes (exposed for the UI button) ─────────────────
+  const resetView = useCallback(() => {
+    const app = appRef.current
+    const ns  = useGameStore.getState().nodes
+    if (app && ns.length) fitNodesToView(app, ns)
+  }, [])
+
+  return { spawnNodes, resetView }
+}
+
+// ── fitNodesToView: Google Maps "fit all" / double-tap reset ──────────────
+// Zooms and pans the stage so every node is comfortably visible with padding.
+// Scale is capped at 1.0 so the default arena view is never over-zoomed.
+function fitNodesToView(app, nodes) {
+  if (!app || !nodes.length) return
+  const pr = window.devicePixelRatio || 1
+  const vw = app.view.width  / pr
+  const vh = app.view.height / pr
+
+  // Node bounding box
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  nodes.forEach(n => {
+    if (n.x < minX) minX = n.x
+    if (n.y < minY) minY = n.y
+    if (n.x > maxX) maxX = n.x
+    if (n.y > maxY) maxY = n.y
+  })
+
+  const PAD   = 70  // world-space padding around bounding box
+  const cw    = (maxX - minX) + PAD * 2
+  const ch    = (maxY - minY) + PAD * 2
+  const scale = Math.min(vw / cw, vh / ch, 1.0)  // never zoom IN past 1×
+
+  app.stage.scale.set(scale)
+  // Centre the bounding box in the viewport
+  const worldCx = (minX + maxX) / 2
+  const worldCy = (minY + maxY) / 2
+  app.stage.x   = vw / 2 - worldCx * scale
+  app.stage.y   = vh / 2 - worldCy * scale
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function drawGrid(gfx, w, h, gridColor) {
   const { r, g, b, a } = gridColor
+  // Extend 300 world-px beyond canvas edges so the grid fills any
+  // overshoot-pan area and never shows a hard cutoff line.
+  const EXT = 300
   gfx.lineStyle(1, (r << 16) | (g << 8) | b, a)
-  for (let x = 0; x < w; x += 40) { gfx.moveTo(x, 0); gfx.lineTo(x, h) }
-  for (let y = 0; y < h; y += 40) { gfx.moveTo(0, y); gfx.lineTo(w, y) }
+  for (let x = -EXT; x <= w + EXT; x += 40) { gfx.moveTo(x, -EXT); gfx.lineTo(x, h + EXT) }
+  for (let y = -EXT; y <= h + EXT; y += 40) { gfx.moveTo(-EXT, y); gfx.lineTo(w + EXT, y) }
 }
 
 function drawDashed(gfx, x1, y1, x2, y2, dashLen = 8, gapLen = 5) {

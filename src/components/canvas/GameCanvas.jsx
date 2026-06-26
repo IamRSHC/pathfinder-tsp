@@ -11,7 +11,7 @@ import ViewToggle       from '../ui/ViewToggle'
 // Spawn is handled exclusively by ArenaScreen to avoid the dual-canvas race.
 function GameCanvas2D({ className = '' }) {
   const containerRef = useRef(null)
-  usePixiGame(containerRef)  // hook renders reactively from store state
+  const { resetView } = usePixiGame(containerRef)  // hook renders reactively from store state
   const { gamePhase, nodes } = useGameStore()
   const { difficulty } = useGameStore()
   const t = useTheme()
@@ -37,7 +37,24 @@ function GameCanvas2D({ className = '' }) {
     >
       <div ref={containerRef} className="w-full h-full" />
 
-
+      {/* ── Fit-all-nodes button — Google Maps style reset ── */}
+      {/* Visible whenever nodes exist; double-tap canvas also triggers this */}
+      {nodes.length > 0 && (
+        <button
+          onClick={resetView}
+          title={t.is ? 'Fit all nodes in view (or double-tap canvas)' : 'FIT ALL NODES (double-tap canvas)'}
+          className={`absolute top-3 right-3 z-10 w-7 h-7
+            flex items-center justify-center
+            rounded border font-mono
+            bg-game-surface/80 border-game-border text-game-muted
+            hover:text-game-cyan hover:border-game-cyan
+            active:scale-95 transition-all backdrop-blur-sm
+            lg:right-16`}
+          style={{ fontSize: '1rem' }}
+        >
+          ⊙
+        </button>
+      )}
 
       {modeLabel && (
         <div className={`absolute top-3 left-3 px-2 py-1 rounded border font-mono text-xs ${modeLabelColor}`}>
